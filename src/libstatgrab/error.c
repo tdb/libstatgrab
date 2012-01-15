@@ -163,8 +163,8 @@ sg_error
 sg_get_error_details(sg_error_details *err_details){
 	struct sg_error_glob *error_glob = sg_get_error_glob();
 	if(NULL == err_details) {
-		va_list ap = (va_list)0;
-		return sg_set_error_int(SG_ERROR_INVALID_ARGUMENT, 0, "sg_get_error_details", ap);
+		va_list *ap = (va_list *)0;
+		return sg_set_error_int(SG_ERROR_INVALID_ARGUMENT, 0, "sg_get_error_details", *ap);
 	}
 	if( !error_glob ) {
 		err_details->error = SG_ERROR_MEMSTATUS;
@@ -300,8 +300,8 @@ sg_strperror(char **buf, const sg_error_details * const err_details) {
 	sg_error_details err_det;
 
 	if((NULL == buf) || (NULL != *buf)) {
-		va_list ap = (va_list)0;
-		sg_set_error_int(SG_ERROR_INVALID_ARGUMENT, 0, "strperror", ap);
+		va_list *ap = (va_list *)0;
+		sg_set_error_int(SG_ERROR_INVALID_ARGUMENT, 0, "strperror", *ap);
 		return NULL;
 	}
 
@@ -327,8 +327,8 @@ sg_strperror(char **buf, const sg_error_details * const err_details) {
 			if(NULL == rc)
 # endif
 			{
-				va_list ap = (va_list)0;
-				sg_set_error_int(SG_ERROR_MALLOC, errno, "strerror_r", ap);
+				va_list *ap = (va_list *)0;
+				sg_set_error_int(SG_ERROR_MALLOC, errno, "strerror_r", *ap);
 				free(*buf);
 				*buf = NULL;
 				return NULL;
@@ -353,8 +353,8 @@ sg_strperror(char **buf, const sg_error_details * const err_details) {
 
 	}
 	else {
-		va_list ap = (va_list)0;
-		sg_set_error_int(SG_ERROR_MALLOC, 0, "sg_strperror", ap);
+		va_list *ap = (va_list *)0;
+		sg_set_error_int(SG_ERROR_MALLOC, 0, "sg_strperror", *ap);
 	}
 
 	return *buf;
