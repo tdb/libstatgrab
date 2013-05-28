@@ -59,7 +59,7 @@ AC_LANG([C])
 dnl ensure ac_lib.m4 etc. are present
 dnl optional later gettext features are used ...
 AM_CONDITIONAL(BUILD_WITH_GETTEXT, false)
-AS_IF([0], [
+AS_IF([false], [
 dnl support NetBSD compatible
 AM_GNU_GETTEXT_VERSION(0.17)
 AM_GNU_GETTEXT(external)
