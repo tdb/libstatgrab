@@ -37,7 +37,7 @@
 #include <limits.h>
 #include <time.h>
 #include <math.h>
-#ifdef AIX
+#ifdef HAVE_TERMIOS_H
 #include <termios.h>
 #else
 #include <sys/termios.h>
