@@ -295,7 +295,11 @@ void populate_user() {
 			name_list[pos] = ' ';
 			pos ++;
 		}
-		name_list[pos-1] = '\0';
+
+		if (entries != 0) {
+			pos--;
+		}
+		name_list[pos] = '\0';
 
 		add_stat(INT, &entries, "user", "num", NULL);
 		add_stat(STRING, &name_list, "user", "names", NULL);
