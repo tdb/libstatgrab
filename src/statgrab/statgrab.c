@@ -296,7 +296,7 @@ populate_user(void) {
 				 "user", tty, "login_time", NULL);
 		}
 
-		name_list = realloc(name_list, name_list_length);
+		name_list = realloc(name_list, name_list_length + 1);
 
 		for (i = 0; i < entries; i++) {
 			const char *name = users[i].login_name;
