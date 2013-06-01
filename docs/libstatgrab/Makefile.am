@@ -83,7 +83,7 @@ if BUILD_MANPAGES
 CLEANFILES= $(man_MANS)
 
 .xml.3:
-	DATE=`git log -1 --format="%ad" --date=short $<` \
-		$(DOCBOOK2MAN) -N --symlinks \
-		--string-param header-3="$$DATE" $<
+	$(DOCBOOK2MAN) -N --symlinks --string-param \
+		header-3="`git log -1 --format='%ad' --date=short $<`" \
+		$<
 endif
