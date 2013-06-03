@@ -15,22 +15,22 @@ AC_DEFUN([MP_WITH_CURSES], [
       LIBS="$mp_save_LIBS $SAIDARLIBS -lncurses"
       CPPFLAGS="$mp_save_CPPFLAGS $SAIDARCPPFLAGS"
       AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <ncurses.h>], [testcode])], [
-	mp_cv_ncurses="ncurses.h"
-	CURSES_LIB="-lncurses"
+        mp_cv_ncurses="ncurses.h"
+        CURSES_LIB="-lncurses"
       ], [
-	LIBS="$mp_save_LIBS $SAIDARLIBS -lncurses"
+        LIBS="$mp_save_LIBS $SAIDARLIBS -lncurses"
         CPPFLAGS="$mp_save_CPPFLAGS $SAIDARCPPFLAGS"
         AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <ncurses/ncurses.h>], [testcode])], [
           mp_cv_ncurses="ncurses/ncurses.h"
-	  CURSES_LIB="-lncurses"
-	], [
-	  LIBS="$mp_save_LIBS $SAIDARLIBS -lcurses"
-	  CPPFLAGS="$mp_save_CPPFLAGS $SAIDARCPPFLAGS"
-	  AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <curses.h>], [testcode])], [
-	    mp_cv_curses="curses.h"
-	    CURSES_LIB="-lcurses"
-	  ], [mp_cv_curses=no])
-	])
+          CURSES_LIB="-lncurses"
+        ], [
+          LIBS="$mp_save_LIBS $SAIDARLIBS -lcurses"
+          CPPFLAGS="$mp_save_CPPFLAGS $SAIDARCPPFLAGS"
+          AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <curses.h>], [testcode])], [
+            mp_cv_curses="curses.h"
+            CURSES_LIB="-lcurses"
+          ], [mp_cv_curses=no])
+        ])
       ])
     ])
   ])
@@ -38,11 +38,11 @@ AC_DEFUN([MP_WITH_CURSES], [
   AS_IF([test ! "$CURSES_LIB"], [
     AC_MSG_WARN([Unable to find curses or ncurses; disabling saidar])
     AM_CONDITIONAL(SAIDAR, false)
-  ], [test "$mp_cv_ncurses"="ncurses.h"], [
+  ], [test "$mp_cv_ncurses" = "ncurses.h"], [
     AC_DEFINE([HAVE_NCURSES_H], 1, [Define to 1 if you have the <ncurses.h> header file.])
-  ], [test "$mp_cv_ncurses"="ncurses/ncurses.h"], [
+  ], [test "$mp_cv_ncurses" = "ncurses/ncurses.h"], [
     AC_DEFINE([HAVE_NCURSES_NCURSES_H], 1, [Define to 1 if you have the <ncurses/ncurses.h> header file.])
-  ], [test "$mp_cv_ncurses"="curses.h"], [
+  ], [test "$mp_cv_ncurses" = "curses.h"], [
     AC_DEFINE([HAVE_CURSES_H], 1, [Define to 1 if you have the <curses.h> header file.])
   ])
 
