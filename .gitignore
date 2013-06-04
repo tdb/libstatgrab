@@ -19,3 +19,5 @@ src/statgrab/statgrab-make-mrtg-config
 src/statgrab/statgrab-make-mrtg-index
 stamp-h1
 INSTALL
+*.o
+*.lo
