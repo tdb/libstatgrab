@@ -29,7 +29,7 @@ AC_DEFUN([MP_WITH_CURSES], [
           AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <curses.h>], [testcode])], [
             mp_cv_ncurses="curses.h"
             CURSES_LIB="-lcurses"
-          ], [mp_cv_curses=no])
+          ], [mp_cv_ncurses=no])
         ])
       ])
     ])
