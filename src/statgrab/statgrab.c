@@ -830,7 +830,7 @@ usage(void) {
 static char *
 strndup(char const *s, size_t n)
 {
-	char *r = malloc(n) + 1;
+	char *r = malloc(n + 1);
 	char *d = r;
 
 	if(!r)
