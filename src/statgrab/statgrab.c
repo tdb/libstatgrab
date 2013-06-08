@@ -838,7 +838,6 @@ strndup(char const *s, size_t n)
 	while((n-- != 0) && *s)
 		*d++ = *s++;
 	*d = 0;
-	printf("'%s'\n", r);
 	return r;
 }
 #endif
