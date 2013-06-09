@@ -384,6 +384,8 @@ sg_comp_destroy(void) {
 
 #ifdef ENABLE_THREADS
 	return sg_global_unlock();
+#else
+	return SG_ERROR_NONE;
 #endif
 }
 
