@@ -867,7 +867,8 @@ push_item(char const **stack, char const *item, size_t items) {
 static int
 sg_is_spc(char ch)
 {
-    int i = (int)ch;
+    unsigned char uch = (unsigned char)ch;
+    int i = (int)((unsigned)uch);
     return isspace(i);
 }
 
