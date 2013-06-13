@@ -1,4 +1,5 @@
 2) HP-UX stability
+   ==> disk_io_stats: malloc(dirent)
 
 3) MacOS X disk_io, page and general stats
 
