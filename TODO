@@ -24,3 +24,9 @@
 
 8) OpenBSD 5.3 - process stats missing
    Failed to get process snapshot: sysctl failed (Invalid argument: CTL_KERN.KERN_PROC.KERN_PROC_ALL)
+
+9) Should sg_destroy_globals be wrapped inside one of the thread-related
+   #ifdefs in globals.c?
+   Some testing should be done with threads disabled and warnings
+   turned on to see what other things crop up.
+   globals.c:447:1: warning: 'sg_destroy_globals' defined but not used [-Wunused-function]
