@@ -2,6 +2,8 @@
    ==> disk_io_stats: malloc(dirent)
 
 3) MacOS X disk_io, page and general stats
+   ==> mach_port_self() like sg_get_sys_pagesize()
+   ==> all to init_comp?
 
 4) configure.ac - xpg\d vs. their funcs
    * ac_check_funcs ...
@@ -13,3 +15,6 @@
    ==> done?
 
 8) define __NEED_SG_GET_SYS_PAGE_SIZE only when needed
+
+9) review code and cleanup common uses of same code
+   ==> see what can be moved to init_comp ...
