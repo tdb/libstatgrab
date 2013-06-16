@@ -30,3 +30,5 @@
    Some testing should be done with threads disabled and warnings
    turned on to see what other things crop up.
    globals.c:447:1: warning: 'sg_destroy_globals' defined but not used [-Wunused-function]
+
+10) Update manual pages to reflect recent API changes.
