@@ -12,5 +12,3 @@
 
 7) review code and cleanup common uses of same code
    ==> see what can be moved to init_comp ...
-
-10) Update manual pages to reflect recent API changes.
