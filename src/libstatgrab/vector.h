@@ -124,7 +124,7 @@ struct sg_vector_size_helper {
 /* Return the data ptr of a vector */
 #define VECTOR_DATA(vector) \
 	(vector ? (void *)(((char *)vector)+VECTOR_SIZE) : NULL)
-#define VECTOR_DATA(vector) \
+#define VECTOR_DATA_CONST(vector) \
 	(vector ? (void const *)(((char *)vector)+VECTOR_SIZE) : NULL)
 
 #define VECTOR_ADDR_ARITH(ptr) \
