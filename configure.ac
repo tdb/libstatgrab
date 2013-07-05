@@ -1436,10 +1436,17 @@ AS_IF(	[test "x${ENABLE_MANPAGES}" = "xno"],
 		dnl check if whether docbook is available
 		AC_MSG_CHECKING([for applicable docbook2man])
 		AC_PATH_PROGS_FEATURE_CHECK([docbook2man_prog], [docbook2x-man docbook2man], [
-			output=`$ac_path_docbook2man_prog --help 2>/dev/null | grep "Convert DocBook XML documents to man pages"`
-			AS_IF([test -n "$output"], [
+			output1=`$ac_path_docbook2man_prog --help 2>/dev/null | grep "Convert DocBook XML documents to man pages"`
+			output2=`$ac_path_docbook2man_prog --help 2>/dev/null | grep "Usage: jw [<options>] <sgml_file>"`
+			AS_IF( [test -n "$output1"], [
 				ac_path_docbook2man_prog_found=:
 				ac_cv_path_docbook2man_prog="$ac_path_docbook2man_prog"
+				ac_cv_path_docbook2man_opts="-N --symlinks --string-param "
+			],
+                        [test -n "$output2"], [
+				ac_path_docbook2man_prog_found=:
+				ac_cv_path_docbook2man_prog="$ac_path_docbook2man_prog"
+				ac_cv_path_docbook2man_opts="-V "
 			])
 		], [
 			docbook2man_prog="none"
@@ -1455,6 +1462,8 @@ AS_IF(	[test "x${ENABLE_MANPAGES}" = "xno"],
 				AM_CONDITIONAL(BUILD_MANPAGES, true)
 				DOCBOOK2MAN="$ac_cv_path_docbook2man_prog"
 				AC_SUBST(DOCBOOK2MAN)
+				DOCBOOK2MAN_OPTS="$ac_cv_path_docbook2man_opts"
+				AC_SUBST(DOCBOOK2MAN_OPTS)
 				AC_MSG_NOTICE([enabling build of manpages using $DOCBOOK2MAN])
 			]
 		)
