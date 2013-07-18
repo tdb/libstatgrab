@@ -26,10 +26,10 @@ sub get_test_functions {
 	defined($self->{test_functions}) and return $self->{test_functions};
 
 	# prepare logging to temporary file only during tests running
-	my ($logfh, $logfn) = File::Temp::tempfile( TMPDIR => 1, CLEANUP => 1,
+	my ($logfh, $logfn) = File::Temp::tempfile( TMPDIR => 1, UNLINK => 1,
 		SUFFIX => ".log", TEMPLATE => "$self->{exename}-XXXXXXXX" );
 	close($logfh);
-	my ($propfh, $propfn) = File::Temp::tempfile( TMPDIR => 1, CLEANUP => 1,
+	my ($propfh, $propfn) = File::Temp::tempfile( TMPDIR => 1, UNLINK => 1,
 		SUFFIX => ".properties", TEMPLATE => "SG_TEST_XXXXXXX" );
 	print $propfh <<EOP;
 log4cplus.logger.statgrab=TRACE, LOGFILE
@@ -153,7 +153,7 @@ sub run_tests(\@;\@) {
 	diag(join(", ", @versions));
 
 	# prepare logging to STDOUT only during tests running
-	my ($propfh, $propfn) = File::Temp::tempfile( TMPDIR => 1, CLEANUP => 1,
+	my ($propfh, $propfn) = File::Temp::tempfile( TMPDIR => 1, UNLINK => 1,
 		SUFFIX => ".properties", TEMPLATE => "SG_TEST_XXXXXXX" );
 	print $propfh <<EOP;
 log4cplus.logger.statgrab=TRACE, STDOUT
