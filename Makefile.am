@@ -66,3 +66,6 @@ endif
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libstatgrab.pc
+
+html-manpages:
+	cd docs && $(MAKE) html-manpages
