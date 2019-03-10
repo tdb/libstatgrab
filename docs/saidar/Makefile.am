@@ -13,7 +13,7 @@ if BUILD_MANPAGES
 MAINTAINERCLEANFILES= $(man_MANS)
 
 .xml.1:
-	$(DOCBOOK2MAN) -N --symlinks --string-param \
+	$(DOCBOOK2MAN) -N --solinks --string-param \
 		header-3="`git log -1 --format='%ad' --date=short $<`" \
 		$<
 endif
