@@ -91,4 +91,19 @@ MAINTAINERCLEANFILES= $(man_MANS)
 	$(DOCBOOK2MAN) -N --solinks --string-param \
 		header-3="`git log -1 --format='%ad' --date=short $<`" \
 		$<
+
+html-manpages: sg_comp_init.3.html sg_get_cpu_stats.3.html \
+	       sg_get_disk_io_stats.3.html sg_get_error.3.html \
+	       sg_get_fs_stats.3.html sg_get_host_info.3.html \
+	       sg_get_load_stats.3.html sg_get_mem_stats.3.html \
+	       sg_get_network_iface_stats.3.html \
+	       sg_get_network_io_stats.3.html sg_get_page_stats.3.html \
+	       sg_get_process_stats.3.html sg_get_user_stats.3.html \
+	       sg_init.3.html sg_internal-intro.3.html sg_intro.3.html \
+	       sg_lock_mutex.3.html sg_set_error.3.html \
+	       sg_vector_create.3.html statgrab.3.html
+
+SUFFIXES = .xml .3.html
+.xml.3.html:
+	xsltproc /usr/share/xml/docbook/stylesheet/docbook-xsl/html/docbook.xsl $< | sed 's/charset=ISO-8859-1/charset=UTF-8/' | iconv --from-code=iso-8859-1 --to-code=utf-8 > $@
 endif
