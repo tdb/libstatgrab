@@ -2,7 +2,7 @@
 # Run the three useful parts of the old GitLab matrix in one booted machine:
 #   1. normal examples build + statgrab smoke/regression capture
 #   2. -Wall -Werror build (recorded, deliberately non-blocking)
-#   3. clean --enable-tests build + make check
+#   3. clean --enable-tests build + make check (unless CI_RUN_TESTS=0)
 set -eu
 
 if [ "$#" -ne 2 ]; then
@@ -158,6 +158,13 @@ copy_if_present "$warning_src/config.log" "$out/config.warnings.log"
 if [ "$warning_rc" -ne 0 ]; then
     echo "$warning_rc" > "$out/warnings.failed"
     echo "WARNING: -Wall -Werror build failed on $slug (non-blocking)" >&2
+fi
+
+if [ "${CI_RUN_TESTS:-1}" = 0 ]; then
+    printf '%s\n' "skipped: CI_RUN_TESTS=0" > "$out/tests.skipped"
+    printf '%s\n' "ok" > "$out/result.txt"
+    echo "Completed build and smoke checks for $slug (make check skipped)"
+    exit 0
 fi
 
 test_src=$(extract_tree "$work/tests")

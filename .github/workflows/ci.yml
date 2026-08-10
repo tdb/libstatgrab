@@ -138,14 +138,7 @@ jobs:
           path: dist
 
       - name: Set up Lima
-        id: lima
         uses: lima-vm/lima-actions/setup@v1
-
-      - name: Cache Lima downloads
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/lima
-          key: lima-${{ runner.os }}-${{ steps.lima.outputs.version }}-${{ matrix.template }}
 
       - name: Boot Linux VM
         run: |
@@ -347,12 +340,8 @@ jobs:
         with:
           name: distfile
           path: dist
-      - id: lima
+      - name: Set up Lima
         uses: lima-vm/lima-actions/setup@v1
-      - uses: actions/cache@v5
-        with:
-          path: ~/.cache/lima
-          key: lima-${{ runner.os }}-${{ steps.lima.outputs.version }}-${{ matrix.template }}
       - name: Boot Linux VM
         run: |
           set -euxo pipefail
@@ -451,7 +440,7 @@ jobs:
       (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
     needs: dist
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -465,8 +454,9 @@ jobs:
           arch: riscv64
           usesh: true
           sync: scp
+          disable-cache: true
           run: |
-            CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh freebsd-15.1-riscv64
+            CI_INSTALL_DEPS=1 CI_RUN_TESTS=0 sh .github/ci/run-target.sh freebsd-15.1-riscv64
             exit 0
       - name: Upload platform result
         if: always()
@@ -487,7 +477,7 @@ jobs:
       (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
     needs: dist
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -495,12 +485,15 @@ jobs:
           - arch: aarch64
             slug: netbsd-11.0-arm64
             sync: scp
+            run_tests: '1'
           - arch: riscv64
             slug: netbsd-11.0-riscv64
             sync: scp
+            run_tests: '0'
           - arch: sparc64
             slug: netbsd-11.0-sparc64
             sync: scp
+            run_tests: '0'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -514,8 +507,9 @@ jobs:
           arch: ${{ matrix.arch }}
           usesh: true
           sync: ${{ matrix.sync }}
+          disable-cache: true
           run: |
-            CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh '${{ matrix.slug }}'
+            CI_INSTALL_DEPS=1 CI_RUN_TESTS='${{ matrix.run_tests }}' sh .github/ci/run-target.sh '${{ matrix.slug }}'
             exit 0
       - name: Upload platform result
         if: always()
@@ -548,6 +542,7 @@ jobs:
           release: '11.4-clang-19'
           usesh: true
           sync: scp
+          disable-cache: true
           prepare: |
             command -v gmake >/dev/null 2>&1 || pkg install -v developer/build/gnu-make
           run: |

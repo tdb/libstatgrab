@@ -28,6 +28,11 @@ check_test_perl()
     perl -e 'use Getopt::Long; use Test::More 0.90; use Data::Dumper; use IPC::Cmd;'
 }
 
+tests_enabled()
+{
+    [ "${CI_RUN_TESTS:-1}" != 0 ]
+}
+
 os=$(uname -s)
 case "$os" in
     Linux)
@@ -83,7 +88,9 @@ case "$os" in
                 esac
                 ;;
         esac
-        check_test_perl
+        if tests_enabled; then
+            check_test_perl
+        fi
         ;;
     SunOS)
         # OmniOS provides the normal developer toolchain as build-essential.
@@ -92,15 +99,17 @@ case "$os" in
         if ! pkg list build-essential system/header >/dev/null 2>&1; then
             as_root pkg install -v build-essential system/header
         fi
-        if command -v perl >/dev/null 2>&1; then
+        if tests_enabled && command -v perl >/dev/null 2>&1; then
             check_test_perl
         fi
         ;;
     FreeBSD)
-        if ! command -v perl >/dev/null 2>&1; then
-            as_root pkg install -y perl5
+        if tests_enabled; then
+            if ! command -v perl >/dev/null 2>&1; then
+                as_root pkg install -y perl5
+            fi
+            check_test_perl
         fi
-        check_test_perl
         ;;
     DragonFly)
         if ! command -v perl >/dev/null 2>&1; then
@@ -109,22 +118,26 @@ case "$os" in
         check_test_perl
         ;;
     NetBSD)
-        if ! command -v perl >/dev/null 2>&1; then
-            if command -v pkgin >/dev/null 2>&1; then
-                as_root pkgin -y install perl
-            elif command -v pkg_add >/dev/null 2>&1; then
-                as_root pkg_add perl
-            else
-                echo "NetBSD guest has neither perl nor a supported package installer" >&2
-                exit 1
+        if tests_enabled; then
+            if ! command -v perl >/dev/null 2>&1; then
+                if command -v pkgin >/dev/null 2>&1; then
+                    as_root pkgin -y install perl
+                elif command -v pkg_add >/dev/null 2>&1; then
+                    as_root pkg_add perl
+                else
+                    echo "NetBSD guest has neither perl nor a supported package installer" >&2
+                    exit 1
+                fi
             fi
+            check_test_perl
         fi
-        check_test_perl
         ;;
     OpenBSD|Darwin)
         # These images already contain a compiler, make, curses and a suitable
         # Perl environment for this release-tarball build.
-        check_test_perl
+        if tests_enabled; then
+            check_test_perl
+        fi
         ;;
     *)
         echo "No dependency recipe for $os" >&2

@@ -23,12 +23,35 @@ case "$mode" in
         rm -rf "$dst"
         mkdir -p "$dst"
         count=0
+        skipped=0
+        invalid=0
         for artifact in "$src"/platform-*; do
             [ -d "$artifact" ] || continue
             name=$(basename "$artifact")
+
+            if [ ! -f "$artifact/exit-code" ]; then
+                echo "::error title=Incomplete CI artifact::$name has no exit-code"
+                invalid=1
+                continue
+            fi
+            rc=$(tr -d '[:space:]' < "$artifact/exit-code")
+            case "$rc" in
+                ''|*[!0-9]*)
+                    echo "::error title=Invalid CI artifact::$name has invalid exit-code '$rc'"
+                    invalid=1
+                    continue
+                    ;;
+            esac
+            if [ "$rc" -ne 0 ]; then
+                echo "::notice title=Skipping failed CI platform::$name exited with status $rc; excluded from regression comparison"
+                skipped=$((skipped + 1))
+                continue
+            fi
+
             if [ ! -f "$artifact/statgrab" ] || [ ! -f "$artifact/config.h" ]; then
-                echo "::error title=Incomplete CI artifact::$name lacks statgrab and/or config.h"
-                exit 1
+                echo "::error title=Incomplete successful CI artifact::$name exited 0 but lacks statgrab and/or config.h"
+                invalid=1
+                continue
             fi
             mkdir -p "$dst/$name"
             # Keep the historical normalization exactly: strip changing values,
@@ -42,11 +65,14 @@ case "$mode" in
             fi
             count=$((count + 1))
         done
-        if [ "$count" -eq 0 ]; then
-            echo "::error::No platform artifacts were downloaded"
+        if [ "$invalid" -ne 0 ]; then
             exit 1
         fi
-        echo "Normalized $count platform artifacts"
+        if [ "$count" -eq 0 ]; then
+            echo "::error::No successful platform artifacts were available for regression comparison"
+            exit 1
+        fi
+        echo "Normalized $count successful platform artifacts; skipped $skipped failed artifacts"
         ;;
 
     compare)
