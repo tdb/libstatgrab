@@ -1,0 +1,737 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - ci-baseline
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Full/extended matrix once a week. Times are UTC.
+    - cron: '17 4 * * 0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  dist:
+    name: Distribution tarball
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install distribution-build dependencies
+        run: |
+          sudo apt-get update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            autoconf automake libtool pkg-config docbook2x libncurses-dev make
+
+      - name: Build release-style tarball
+        run: |
+          set -euxo pipefail
+          LSG_VERSION=$(git rev-parse --short=8 HEAD)
+          ./autogen.sh
+          ./configure
+          make distcheck VERSION="$LSG_VERSION"
+          test -n "$(find . -maxdepth 1 -name 'libstatgrab-*.tar.gz' -print -quit)"
+
+      - name: Upload distribution tarball
+        uses: actions/upload-artifact@v7
+        with:
+          name: distfile
+          path: libstatgrab-*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  native:
+    name: Native / ${{ matrix.slug }}
+    needs: dist
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: ubuntu-22.04-x86_64
+            runner: ubuntu-22.04
+          - slug: ubuntu-24.04-x86_64
+            runner: ubuntu-24.04
+          - slug: ubuntu-26.04-x86_64
+            runner: ubuntu-26.04
+          - slug: ubuntu-24.04-arm64
+            runner: ubuntu-24.04-arm
+          - slug: macos-15-x86_64
+            runner: macos-15-intel
+          - slug: macos-26-arm64
+            runner: macos-26
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out CI helpers
+        uses: actions/checkout@v7
+
+      - name: Download distribution tarball
+        uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+
+      - name: Install build dependencies
+        shell: bash
+        run: sh .github/ci/install-deps.sh
+
+      - name: Build, smoke-test and run test suite
+        id: target-test
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -eu
+          set -- dist/libstatgrab-*.tar.gz
+          sh .github/ci/build-and-test.sh '${{ matrix.slug }}' "$1"
+
+      - name: Upload platform result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-${{ matrix.slug }}
+          path: .ci-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Propagate target failure
+        if: steps.target-test.outcome == 'failure'
+        shell: bash
+        run: exit 1
+
+  linux-vm:
+    name: Linux VM / ${{ matrix.slug }}
+    needs: dist
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: debian-13-x86_64
+            template: debian-13
+          - slug: fedora-44-x86_64
+            template: fedora-44
+          - slug: almalinux-10-x86_64
+            template: almalinux-10
+          - slug: opensuse-leap-16-x86_64
+            template: opensuse-leap-16
+          - slug: alpine-3.23-x86_64
+            template: alpine-3.23
+          - slug: archlinux-x86_64
+            template: archlinux
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out CI helpers
+        uses: actions/checkout@v7
+
+      - name: Download distribution tarball
+        uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+
+      - name: Set up Lima
+        id: lima
+        uses: lima-vm/lima-actions/setup@v1
+
+      - name: Cache Lima downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/lima
+          key: lima-${{ runner.os }}-${{ steps.lima.outputs.version }}-${{ matrix.template }}
+
+      - name: Boot Linux VM
+        run: |
+          set -euxo pipefail
+          limactl start --plain --name=default --cpus=2 --memory=4 template:${{ matrix.template }}
+          rsync -a --delete --exclude='.git' -e ssh ./ lima-default:/tmp/libstatgrab/
+          ssh lima-default 'cd /tmp/libstatgrab && sh .github/ci/install-deps.sh'
+
+      - name: Build, smoke-test and run test suite in VM
+        id: target-test
+        continue-on-error: true
+        run: |
+          set -euxo pipefail
+          ssh lima-default "cd /tmp/libstatgrab && set -- dist/libstatgrab-*.tar.gz; sh .github/ci/build-and-test.sh '${{ matrix.slug }}' \"\$1\""
+
+      - name: Copy result out of VM
+        if: always()
+        run: |
+          mkdir -p .ci-output
+          rsync -a -e ssh lima-default:/tmp/libstatgrab/.ci-output/ .ci-output/ || true
+
+      - name: Upload platform result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-${{ matrix.slug }}
+          path: .ci-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Stop Linux VM
+        if: always()
+        run: limactl stop default || true
+
+      - name: Propagate target failure
+        if: steps.target-test.outcome == 'failure'
+        run: exit 1
+
+  unix-vm:
+    name: BSD/illumos VM / ${{ matrix.slug }}
+    needs: dist
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: cpa.sh {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: freebsd-15.1-x86_64
+            os: freebsd
+            version: '15.1'
+            architecture: x86-64
+          - slug: freebsd-14.4-x86_64
+            os: freebsd
+            version: '14.4'
+            architecture: x86-64
+          - slug: openbsd-7.9-x86_64
+            os: openbsd
+            version: '7.9'
+            architecture: x86-64
+          - slug: dragonflybsd-6.4.2-x86_64
+            os: dragonflybsd
+            version: '6.4.2'
+            architecture: x86-64
+          - slug: omnios-r151058-x86_64
+            os: omnios
+            version: 'r151058'
+            architecture: x86-64
+    steps:
+      - name: Check out CI helpers
+        uses: actions/checkout@v7
+
+      - name: Download distribution tarball
+        uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+
+      - name: Boot ${{ matrix.os }} VM
+        uses: cross-platform-actions/action@v1.3.0
+        with:
+          operating_system: ${{ matrix.os }}
+          version: ${{ matrix.version }}
+          architecture: ${{ matrix.architecture }}
+          memory: 5G
+          cpu_count: 2
+
+      - name: Install build dependencies
+        run: sh .github/ci/install-deps.sh
+
+      - name: Build, smoke-test and run test suite in VM
+        id: target-test
+        continue-on-error: true
+        run: |
+          set -- dist/libstatgrab-*.tar.gz
+          sh .github/ci/build-and-test.sh '${{ matrix.slug }}' "$1"
+
+      - name: Upload platform result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-${{ matrix.slug }}
+          path: .ci-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Propagate target failure
+        if: steps.target-test.outcome == 'failure'
+        run: exit 1
+
+  netbsd-vm:
+    name: NetBSD VM / 11.0 x86_64
+    needs: dist
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Build and test in NetBSD 11.0
+        id: target-test
+        continue-on-error: true
+        uses: vmactions/netbsd-vm@v1.4.6
+        with:
+          release: '11.0'
+          usesh: true
+          sync: rsync
+          run: |
+            set -- dist/libstatgrab-*.tar.gz
+            sh .github/ci/build-and-test.sh netbsd-11.0-x86_64 "$1"
+      - name: Upload platform result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-netbsd-11.0-x86_64
+          path: .ci-output/netbsd-11.0-x86_64
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Propagate target failure
+        if: steps.target-test.outcome == 'failure'
+        run: exit 1
+
+  solaris-vm:
+    name: Oracle Solaris VM / 11.4 GCC
+    needs: dist
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Build and test in Oracle Solaris 11.4 CBE
+        id: target-test
+        continue-on-error: true
+        uses: vmactions/solaris-vm@v1.3.8
+        with:
+          release: '11.4-gcc'
+          usesh: true
+          sync: rsync
+          prepare: |
+            pkg install -v developer/build/gnu-make
+          run: |
+            set -- dist/libstatgrab-*.tar.gz
+            CC=gcc MAKE=gmake sh .github/ci/build-and-test.sh solaris-11.4-gcc-x86_64 "$1"
+      - name: Upload platform result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-solaris-11.4-gcc-x86_64
+          path: .ci-output/solaris-11.4-gcc-x86_64
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Propagate target failure
+        if: steps.target-test.outcome == 'failure'
+        run: exit 1
+
+  linux-vm-extended:
+    name: Extended Linux VM / ${{ matrix.slug }}
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: dist
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: debian-12-x86_64
+            template: debian-12
+          - slug: fedora-43-x86_64
+            template: fedora-43
+          - slug: almalinux-8-x86_64
+            template: almalinux-8
+          - slug: almalinux-9-x86_64
+            template: almalinux-9
+          - slug: centos-stream-10-x86_64
+            template: centos-stream-10
+          - slug: oraclelinux-10-x86_64
+            template: oraclelinux-10
+          - slug: rocky-10-x86_64
+            template: rocky-10
+          - slug: opensuse-leap-15-x86_64
+            template: opensuse-leap-15
+          - slug: alpine-3.22-x86_64
+            template: alpine-3.22
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - id: lima
+        uses: lima-vm/lima-actions/setup@v1
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/lima
+          key: lima-${{ runner.os }}-${{ steps.lima.outputs.version }}-${{ matrix.template }}
+      - name: Boot Linux VM
+        run: |
+          set -euxo pipefail
+          limactl start --plain --name=default --cpus=2 --memory=4 template:${{ matrix.template }}
+          rsync -a --delete --exclude='.git' -e ssh ./ lima-default:/tmp/libstatgrab/
+          ssh lima-default 'cd /tmp/libstatgrab && sh .github/ci/install-deps.sh'
+      - name: Build, smoke-test and run test suite in VM
+        id: target-test
+        continue-on-error: true
+        run: |
+          set -euxo pipefail
+          ssh lima-default "cd /tmp/libstatgrab && set -- dist/libstatgrab-*.tar.gz; sh .github/ci/build-and-test.sh '${{ matrix.slug }}' \"\$1\""
+      - name: Copy result out of VM
+        if: always()
+        run: |
+          mkdir -p .ci-output
+          rsync -a -e ssh lima-default:/tmp/libstatgrab/.ci-output/ .ci-output/ || true
+      - name: Upload platform result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-${{ matrix.slug }}
+          path: .ci-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Stop Linux VM
+        if: always()
+        run: limactl stop default || true
+      - name: Propagate target failure
+        if: steps.target-test.outcome == 'failure'
+        run: exit 1
+
+  unix-vm-extended:
+    name: Extended BSD / ${{ matrix.slug }}
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: dist
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: cpa.sh {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: freebsd-15.1-arm64
+            os: freebsd
+            version: '15.1'
+            architecture: arm64
+          - slug: openbsd-7.9-arm64
+            os: openbsd
+            version: '7.9'
+            architecture: arm64
+          - slug: openbsd-7.8-x86_64
+            os: openbsd
+            version: '7.8'
+            architecture: x86-64
+          - slug: netbsd-10.1-x86_64
+            os: netbsd
+            version: '10.1'
+            architecture: x86-64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Boot ${{ matrix.os }} VM
+        uses: cross-platform-actions/action@v1.3.0
+        with:
+          operating_system: ${{ matrix.os }}
+          version: ${{ matrix.version }}
+          architecture: ${{ matrix.architecture }}
+          memory: 5G
+          cpu_count: 2
+      - name: Install build dependencies
+        run: sh .github/ci/install-deps.sh
+      - name: Build, smoke-test and run test suite in VM
+        id: target-test
+        continue-on-error: true
+        run: |
+          set -- dist/libstatgrab-*.tar.gz
+          sh .github/ci/build-and-test.sh '${{ matrix.slug }}' "$1"
+      - name: Upload platform result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-${{ matrix.slug }}
+          path: .ci-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Propagate target failure
+        if: steps.target-test.outcome == 'failure'
+        run: exit 1
+
+  freebsd-vm-extended:
+    name: Extended FreeBSD 15.1 / riscv64
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: dist
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Build and test in FreeBSD 15.1 RISC-V
+        id: target-test
+        continue-on-error: true
+        uses: vmactions/freebsd-vm@v1.5.3
+        with:
+          release: '15.1'
+          arch: riscv64
+          usesh: true
+          sync: scp
+          run: |
+            set -- dist/libstatgrab-*.tar.gz
+            sh .github/ci/build-and-test.sh freebsd-15.1-riscv64 "$1"
+      - name: Upload platform result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-freebsd-15.1-riscv64
+          path: .ci-output/freebsd-15.1-riscv64
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Propagate target failure
+        if: steps.target-test.outcome == 'failure'
+        run: exit 1
+
+  netbsd-vm-extended:
+    name: Extended NetBSD 11.0 / ${{ matrix.arch }}
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: dist
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            slug: netbsd-11.0-arm64
+            sync: rsync
+          - arch: riscv64
+            slug: netbsd-11.0-riscv64
+            sync: rsync
+          - arch: sparc64
+            slug: netbsd-11.0-sparc64
+            sync: scp
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Build and test in NetBSD 11.0 ${{ matrix.arch }}
+        id: target-test
+        continue-on-error: true
+        uses: vmactions/netbsd-vm@v1.4.6
+        with:
+          release: '11.0'
+          arch: ${{ matrix.arch }}
+          usesh: true
+          sync: ${{ matrix.sync }}
+          run: |
+            set -- dist/libstatgrab-*.tar.gz
+            sh .github/ci/build-and-test.sh '${{ matrix.slug }}' "$1"
+      - name: Upload platform result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-${{ matrix.slug }}
+          path: .ci-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Propagate target failure
+        if: steps.target-test.outcome == 'failure'
+        run: exit 1
+
+  solaris-vm-extended:
+    name: Extended Oracle Solaris / 11.4 Clang 19
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: dist
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Build and test with Clang in Oracle Solaris 11.4 CBE
+        id: target-test
+        continue-on-error: true
+        uses: vmactions/solaris-vm@v1.3.8
+        with:
+          release: '11.4-clang-19'
+          usesh: true
+          sync: rsync
+          prepare: |
+            pkg install -v developer/build/gnu-make
+          run: |
+            set -- dist/libstatgrab-*.tar.gz
+            CC=clang MAKE=gmake sh .github/ci/build-and-test.sh solaris-11.4-clang19-x86_64 "$1"
+      - name: Upload platform result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-solaris-11.4-clang19-x86_64
+          path: .ci-output/solaris-11.4-clang19-x86_64
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Propagate target failure
+        if: steps.target-test.outcome == 'failure'
+        run: exit 1
+
+  regression:
+    name: Platform regression check
+    if: always() && needs.dist.result == 'success'
+    needs:
+      - dist
+      - native
+      - linux-vm
+      - unix-vm
+      - netbsd-vm
+      - solaris-vm
+      - linux-vm-extended
+      - unix-vm-extended
+      - freebsd-vm-extended
+      - netbsd-vm-extended
+      - solaris-vm-extended
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out CI helpers
+        uses: actions/checkout@v7
+
+      - name: Download platform artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: platform-*
+          path: .ci-current
+
+      - name: Normalize current results
+        run: sh .github/ci/regression.sh normalize .ci-current .ci-normalized
+
+      - name: Check out persistent default-branch baseline
+        run: |
+          set -eu
+          REF_WORKTREE='${{ runner.temp }}/libstatgrab-ci-reference'
+          rm -rf "$REF_WORKTREE"
+          if git fetch --no-tags origin ci-baseline:refs/remotes/origin/ci-baseline; then
+            git worktree add --detach "$REF_WORKTREE" origin/ci-baseline
+          else
+            mkdir -p "$REF_WORKTREE/baseline"
+            echo "No ci-baseline branch exists yet"
+          fi
+
+      - name: Compare with default-branch baseline
+        continue-on-error: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+        run: >-
+          sh .github/ci/regression.sh compare
+          .ci-normalized
+          '${{ runner.temp }}/libstatgrab-ci-reference/baseline'
+
+  baseline-publish:
+    name: Publish platform regression baseline
+    if: >-
+      always() &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      needs.dist.result == 'success' &&
+      needs.native.result == 'success' &&
+      needs.linux-vm.result == 'success' &&
+      needs.unix-vm.result == 'success' &&
+      needs.netbsd-vm.result == 'success' &&
+      needs.solaris-vm.result == 'success' &&
+      (needs.linux-vm-extended.result == 'success' || needs.linux-vm-extended.result == 'skipped') &&
+      (needs.unix-vm-extended.result == 'success' || needs.unix-vm-extended.result == 'skipped') &&
+      (needs.freebsd-vm-extended.result == 'success' || needs.freebsd-vm-extended.result == 'skipped') &&
+      (needs.netbsd-vm-extended.result == 'success' || needs.netbsd-vm-extended.result == 'skipped') &&
+      (needs.solaris-vm-extended.result == 'success' || needs.solaris-vm-extended.result == 'skipped')
+    needs:
+      - dist
+      - native
+      - linux-vm
+      - unix-vm
+      - netbsd-vm
+      - solaris-vm
+      - linux-vm-extended
+      - unix-vm-extended
+      - freebsd-vm-extended
+      - netbsd-vm-extended
+      - solaris-vm-extended
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Check out CI helpers
+        uses: actions/checkout@v7
+
+      - name: Download platform artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: platform-*
+          path: .ci-current
+
+      - name: Normalize current results
+        run: sh .github/ci/regression.sh normalize .ci-current .ci-normalized
+
+      - name: Check out existing baseline
+        run: |
+          set -eu
+          REF_WORKTREE='${{ runner.temp }}/libstatgrab-ci-reference'
+          rm -rf "$REF_WORKTREE"
+          if git fetch --no-tags origin ci-baseline:refs/remotes/origin/ci-baseline; then
+            git worktree add --detach "$REF_WORKTREE" origin/ci-baseline
+          else
+            mkdir -p "$REF_WORKTREE/baseline"
+            echo "No ci-baseline branch exists yet"
+          fi
+
+      - name: Prepare updated baseline
+        run: |
+          set -eu
+          sh .github/ci/regression.sh merge \
+            .ci-normalized \
+            '${{ runner.temp }}/libstatgrab-ci-reference/baseline' \
+            .ci-publish
+          printf '%s\n' "$GITHUB_SHA" > .ci-publish/SOURCE_SHA
+          date -u '+%Y-%m-%dT%H:%M:%SZ' > .ci-publish/UPDATED_AT
+
+      - name: Publish updated baseline branch
+        run: |
+          set -euxo pipefail
+          WT='${{ runner.temp }}/libstatgrab-ci-baseline-publish'
+          rm -rf "$WT"
+
+          if git show-ref --verify --quiet refs/remotes/origin/ci-baseline; then
+            git worktree add -B ci-baseline "$WT" origin/ci-baseline
+          else
+            git worktree add --detach "$WT" HEAD
+            (
+              cd "$WT"
+              git checkout --orphan ci-baseline
+              git rm -rf .
+            )
+          fi
+
+          rm -rf "$WT/baseline"
+          mkdir -p "$WT/baseline"
+          cp -R .ci-publish/. "$WT/baseline/"
+          cat > "$WT/README.md" <<'EON'
+          # libstatgrab CI regression baseline
+
+          This branch is maintained automatically by `.github/workflows/ci.yml`.
+          It contains normalized `statgrab` keys and `config.h` snapshots from
+          successful default-branch CI runs. Do not edit it by hand.
+          EON
+
+          (
+            cd "$WT"
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -A
+            if git diff --cached --quiet; then
+              echo 'CI baseline is unchanged'
+            else
+              git commit -m "CI baseline for $GITHUB_SHA"
+              git push origin HEAD:ci-baseline
+            fi
+          )
