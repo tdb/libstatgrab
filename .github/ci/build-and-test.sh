@@ -69,6 +69,15 @@ fi
 echo "make=$make_cmd" >> "$out/compiler.txt"
 "$make_cmd" --version >> "$out/compiler.txt" 2>&1 || true
 
+# DragonFly's third-party headers/libraries live under /usr/local.  The old
+# Vagrant CI supplied these paths explicitly, and current pkg-installed curses
+# and other compatibility libraries still follow that convention.
+if [ "$(uname -s)" = DragonFly ]; then
+    CPPFLAGS="${CPPFLAGS:+$CPPFLAGS }-I/usr/local/include"
+    LDFLAGS="${LDFLAGS:+$LDFLAGS }-L/usr/local/lib"
+    export CPPFLAGS LDFLAGS
+fi
+
 topdir=$(gzip -dc "$distfile" | tar tf - | sed -n '1{s,/.*,,;p;}')
 if [ -z "$topdir" ]; then
     echo "Could not determine top-level directory in $distfile" >&2

@@ -6,6 +6,16 @@ on:
       - ci-baseline
   pull_request:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: Which CI matrix to run
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - core
+          - extended
   schedule:
     # Full/extended matrix once a week. Times are UTC.
     - cron: '17 4 * * 0'
@@ -50,6 +60,7 @@ jobs:
 
   native:
     name: Native / ${{ matrix.slug }}
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     strategy:
       fail-fast: false
@@ -107,6 +118,7 @@ jobs:
 
   linux-vm:
     name: Linux VM / ${{ matrix.slug }}
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     strategy:
       fail-fast: false
@@ -140,7 +152,7 @@ jobs:
         uses: lima-vm/lima-actions/setup@v1
 
       - name: Cache Lima downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/lima
           key: lima-${{ runner.os }}-${{ steps.lima.outputs.version }}-${{ matrix.template }}
@@ -149,21 +161,21 @@ jobs:
         run: |
           set -euxo pipefail
           limactl start --plain --name=default --cpus=2 --memory=4 template:${{ matrix.template }}
-          rsync -a --delete --exclude='.git' -e ssh ./ lima-default:/tmp/libstatgrab/
-          ssh lima-default 'cd /tmp/libstatgrab && sh .github/ci/install-deps.sh'
+          limactl shell default -- sh -c 'rm -rf /tmp/libstatgrab && mkdir -p /tmp/libstatgrab'
+          limactl copy --backend=scp -r .github dist default:/tmp/libstatgrab/
 
       - name: Build, smoke-test and run test suite in VM
-        id: target-test
-        continue-on-error: true
-        run: |
-          set -euxo pipefail
-          ssh lima-default "cd /tmp/libstatgrab && set -- dist/libstatgrab-*.tar.gz; sh .github/ci/build-and-test.sh '${{ matrix.slug }}' \"\$1\""
+        run: >-
+          limactl shell default -- sh -c
+          "cd /tmp/libstatgrab && CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh '${{ matrix.slug }}'"
 
       - name: Copy result out of VM
         if: always()
         run: |
           mkdir -p .ci-output
-          rsync -a -e ssh lima-default:/tmp/libstatgrab/.ci-output/ .ci-output/ || true
+          limactl copy --backend=scp -r \
+            default:/tmp/libstatgrab/.ci-output/${{ matrix.slug }} \
+            .ci-output/ || true
 
       - name: Upload platform result
         if: always()
@@ -179,11 +191,11 @@ jobs:
         run: limactl stop default || true
 
       - name: Propagate target failure
-        if: steps.target-test.outcome == 'failure'
-        run: exit 1
+        run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
   unix-vm:
     name: BSD/illumos VM / ${{ matrix.slug }}
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
     defaults:
@@ -232,15 +244,8 @@ jobs:
           memory: 5G
           cpu_count: 2
 
-      - name: Install build dependencies
-        run: sh .github/ci/install-deps.sh
-
-      - name: Build, smoke-test and run test suite in VM
-        id: target-test
-        continue-on-error: true
-        run: |
-          set -- dist/libstatgrab-*.tar.gz
-          sh .github/ci/build-and-test.sh '${{ matrix.slug }}' "$1"
+      - name: Install dependencies, build and test in VM
+        run: CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh '${{ matrix.slug }}'
 
       - name: Upload platform result
         if: always()
@@ -252,11 +257,12 @@ jobs:
           retention-days: 30
 
       - name: Propagate target failure
-        if: steps.target-test.outcome == 'failure'
-        run: exit 1
+        shell: bash
+        run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
   netbsd-vm:
     name: NetBSD VM / 11.0 x86_64
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
     steps:
@@ -266,16 +272,14 @@ jobs:
           name: distfile
           path: dist
       - name: Build and test in NetBSD 11.0
-        id: target-test
-        continue-on-error: true
         uses: vmactions/netbsd-vm@v1.4.6
         with:
           release: '11.0'
           usesh: true
-          sync: rsync
+          sync: scp
           run: |
-            set -- dist/libstatgrab-*.tar.gz
-            sh .github/ci/build-and-test.sh netbsd-11.0-x86_64 "$1"
+            CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh netbsd-11.0-x86_64
+            exit 0
       - name: Upload platform result
         if: always()
         uses: actions/upload-artifact@v7
@@ -285,11 +289,11 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: Propagate target failure
-        if: steps.target-test.outcome == 'failure'
-        run: exit 1
+        run: sh .github/ci/check-result.sh netbsd-11.0-x86_64
 
   solaris-vm:
     name: Oracle Solaris VM / 11.4 GCC
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
     steps:
@@ -299,18 +303,15 @@ jobs:
           name: distfile
           path: dist
       - name: Build and test in Oracle Solaris 11.4 CBE
-        id: target-test
-        continue-on-error: true
         uses: vmactions/solaris-vm@v1.3.8
         with:
           release: '11.4-gcc'
           usesh: true
-          sync: rsync
+          sync: scp
           prepare: |
-            pkg install -v developer/build/gnu-make
+            command -v gmake >/dev/null 2>&1 || pkg install -v developer/build/gnu-make
           run: |
-            set -- dist/libstatgrab-*.tar.gz
-            CC=gcc MAKE=gmake sh .github/ci/build-and-test.sh solaris-11.4-gcc-x86_64 "$1"
+            CC=gcc MAKE=gmake sh .github/ci/run-target.sh solaris-11.4-gcc-x86_64
       - name: Upload platform result
         if: always()
         uses: actions/upload-artifact@v7
@@ -320,12 +321,14 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: Propagate target failure
-        if: steps.target-test.outcome == 'failure'
-        run: exit 1
+        run: sh .github/ci/check-result.sh solaris-11.4-gcc-x86_64
 
   linux-vm-extended:
     name: Extended Linux VM / ${{ matrix.slug }}
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
     needs: dist
     strategy:
       fail-fast: false
@@ -358,7 +361,7 @@ jobs:
           path: dist
       - id: lima
         uses: lima-vm/lima-actions/setup@v1
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: ~/.cache/lima
           key: lima-${{ runner.os }}-${{ steps.lima.outputs.version }}-${{ matrix.template }}
@@ -366,19 +369,19 @@ jobs:
         run: |
           set -euxo pipefail
           limactl start --plain --name=default --cpus=2 --memory=4 template:${{ matrix.template }}
-          rsync -a --delete --exclude='.git' -e ssh ./ lima-default:/tmp/libstatgrab/
-          ssh lima-default 'cd /tmp/libstatgrab && sh .github/ci/install-deps.sh'
+          limactl shell default -- sh -c 'rm -rf /tmp/libstatgrab && mkdir -p /tmp/libstatgrab'
+          limactl copy --backend=scp -r .github dist default:/tmp/libstatgrab/
       - name: Build, smoke-test and run test suite in VM
-        id: target-test
-        continue-on-error: true
-        run: |
-          set -euxo pipefail
-          ssh lima-default "cd /tmp/libstatgrab && set -- dist/libstatgrab-*.tar.gz; sh .github/ci/build-and-test.sh '${{ matrix.slug }}' \"\$1\""
+        run: >-
+          limactl shell default -- sh -c
+          "cd /tmp/libstatgrab && CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh '${{ matrix.slug }}'"
       - name: Copy result out of VM
         if: always()
         run: |
           mkdir -p .ci-output
-          rsync -a -e ssh lima-default:/tmp/libstatgrab/.ci-output/ .ci-output/ || true
+          limactl copy --backend=scp -r \
+            default:/tmp/libstatgrab/.ci-output/${{ matrix.slug }} \
+            .ci-output/ || true
       - name: Upload platform result
         if: always()
         uses: actions/upload-artifact@v7
@@ -391,12 +394,14 @@ jobs:
         if: always()
         run: limactl stop default || true
       - name: Propagate target failure
-        if: steps.target-test.outcome == 'failure'
-        run: exit 1
+        run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
   unix-vm-extended:
     name: Extended BSD / ${{ matrix.slug }}
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
     needs: dist
     runs-on: ubuntu-24.04
     defaults:
@@ -436,14 +441,8 @@ jobs:
           architecture: ${{ matrix.architecture }}
           memory: 5G
           cpu_count: 2
-      - name: Install build dependencies
-        run: sh .github/ci/install-deps.sh
-      - name: Build, smoke-test and run test suite in VM
-        id: target-test
-        continue-on-error: true
-        run: |
-          set -- dist/libstatgrab-*.tar.gz
-          sh .github/ci/build-and-test.sh '${{ matrix.slug }}' "$1"
+      - name: Install dependencies, build and test in VM
+        run: CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh '${{ matrix.slug }}'
       - name: Upload platform result
         if: always()
         uses: actions/upload-artifact@v7
@@ -453,12 +452,15 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: Propagate target failure
-        if: steps.target-test.outcome == 'failure'
-        run: exit 1
+        shell: bash
+        run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
   freebsd-vm-extended:
     name: Extended FreeBSD 15.1 / riscv64
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
     needs: dist
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -469,8 +471,6 @@ jobs:
           name: distfile
           path: dist
       - name: Build and test in FreeBSD 15.1 RISC-V
-        id: target-test
-        continue-on-error: true
         uses: vmactions/freebsd-vm@v1.5.3
         with:
           release: '15.1'
@@ -478,8 +478,8 @@ jobs:
           usesh: true
           sync: scp
           run: |
-            set -- dist/libstatgrab-*.tar.gz
-            sh .github/ci/build-and-test.sh freebsd-15.1-riscv64 "$1"
+            CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh freebsd-15.1-riscv64
+            exit 0
       - name: Upload platform result
         if: always()
         uses: actions/upload-artifact@v7
@@ -489,12 +489,14 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: Propagate target failure
-        if: steps.target-test.outcome == 'failure'
-        run: exit 1
+        run: sh .github/ci/check-result.sh freebsd-15.1-riscv64
 
   netbsd-vm-extended:
     name: Extended NetBSD 11.0 / ${{ matrix.arch }}
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
     needs: dist
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -504,10 +506,10 @@ jobs:
         include:
           - arch: aarch64
             slug: netbsd-11.0-arm64
-            sync: rsync
+            sync: scp
           - arch: riscv64
             slug: netbsd-11.0-riscv64
-            sync: rsync
+            sync: scp
           - arch: sparc64
             slug: netbsd-11.0-sparc64
             sync: scp
@@ -518,8 +520,6 @@ jobs:
           name: distfile
           path: dist
       - name: Build and test in NetBSD 11.0 ${{ matrix.arch }}
-        id: target-test
-        continue-on-error: true
         uses: vmactions/netbsd-vm@v1.4.6
         with:
           release: '11.0'
@@ -527,8 +527,8 @@ jobs:
           usesh: true
           sync: ${{ matrix.sync }}
           run: |
-            set -- dist/libstatgrab-*.tar.gz
-            sh .github/ci/build-and-test.sh '${{ matrix.slug }}' "$1"
+            CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh '${{ matrix.slug }}'
+            exit 0
       - name: Upload platform result
         if: always()
         uses: actions/upload-artifact@v7
@@ -538,12 +538,14 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: Propagate target failure
-        if: steps.target-test.outcome == 'failure'
-        run: exit 1
+        run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
   solaris-vm-extended:
     name: Extended Oracle Solaris / 11.4 Clang 19
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
     needs: dist
     runs-on: ubuntu-24.04
     steps:
@@ -553,18 +555,15 @@ jobs:
           name: distfile
           path: dist
       - name: Build and test with Clang in Oracle Solaris 11.4 CBE
-        id: target-test
-        continue-on-error: true
         uses: vmactions/solaris-vm@v1.3.8
         with:
           release: '11.4-clang-19'
           usesh: true
-          sync: rsync
+          sync: scp
           prepare: |
-            pkg install -v developer/build/gnu-make
+            command -v gmake >/dev/null 2>&1 || pkg install -v developer/build/gnu-make
           run: |
-            set -- dist/libstatgrab-*.tar.gz
-            CC=clang MAKE=gmake sh .github/ci/build-and-test.sh solaris-11.4-clang19-x86_64 "$1"
+            CC=clang MAKE=gmake sh .github/ci/run-target.sh solaris-11.4-clang19-x86_64
       - name: Upload platform result
         if: always()
         uses: actions/upload-artifact@v7
@@ -574,8 +573,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: Propagate target failure
-        if: steps.target-test.outcome == 'failure'
-        run: exit 1
+        run: sh .github/ci/check-result.sh solaris-11.4-clang19-x86_64
 
   regression:
     name: Platform regression check
