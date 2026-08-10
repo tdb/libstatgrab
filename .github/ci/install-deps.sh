@@ -33,6 +33,43 @@ tests_enabled()
     [ "${CI_RUN_TESTS:-1}" != 0 ]
 }
 
+dragonfly_pkg_install()
+{
+    # The stock DragonFly image uses the Avalon repository. If Avalon cannot
+    # refresh, retry against DragonFly's official AUTO mirror without changing
+    # the guest's persistent pkg configuration.
+    if as_root pkg install -y "$@"; then
+        return 0
+    fi
+
+    echo "DragonFly Avalon repository failed; retrying via official AUTO mirror" >&2
+    repo_dir=/tmp/libstatgrab-pkg-repos
+    rm -rf "$repo_dir"
+    mkdir -p "$repo_dir"
+    cat > "$repo_dir/auto.conf" <<'EOF'
+AUTO: {
+    url: "https://pkg.dragonflybsd.org/pkg/${ABI}/LATEST",
+    mirror_type: "HTTP",
+    enabled: yes
+}
+EOF
+
+    attempt=1
+    while :; do
+        as_root pkg -R "$repo_dir" update -f || true
+        if as_root pkg -R "$repo_dir" install -y "$@"; then
+            return 0
+        fi
+        if [ "$attempt" -ge 3 ]; then
+            echo "DragonFly AUTO mirror install failed after $attempt attempts: $*" >&2
+            return 1
+        fi
+        echo "DragonFly AUTO mirror install failed (attempt $attempt/3); retrying" >&2
+        sleep $((attempt * 5))
+        attempt=$((attempt + 1))
+    done
+}
+
 os=$(uname -s)
 case "$os" in
     Linux)
@@ -113,7 +150,7 @@ case "$os" in
         ;;
     DragonFly)
         if ! command -v perl >/dev/null 2>&1; then
-            as_root pkg install -y perl5
+            dragonfly_pkg_install perl5
         fi
         check_test_perl
         ;;

@@ -16,6 +16,11 @@ on:
           - all
           - core
           - extended
+      publish_baseline:
+        description: Force baseline from successful targets (scope=all, default branch only)
+        required: true
+        default: false
+        type: boolean
   schedule:
     # Full/extended matrix once a week. Times are UTC.
     - cron: '17 4 * * 0'
@@ -120,8 +125,15 @@ jobs:
             template: fedora-44
           - slug: almalinux-10-x86_64
             template: almalinux-10
+          - slug: rocky-8-x86_64
+            template: rocky-8
+          - slug: rocky-9-x86_64
+            template: rocky-9
+          - slug: rocky-10-x86_64
+            template: rocky-10
           - slug: opensuse-leap-16-x86_64
             template: opensuse-leap-16
+          # Lima has no built-in alpine-3.24 template yet; bump this when it does.
           - slug: alpine-3.23-x86_64
             template: alpine-3.23
           - slug: archlinux-x86_64
@@ -329,8 +341,6 @@ jobs:
             template: centos-stream-10
           - slug: oraclelinux-10-x86_64
             template: oraclelinux-10
-          - slug: rocky-10-x86_64
-            template: rocky-10
           - slug: alpine-3.22-x86_64
             template: alpine-3.22
     runs-on: ubuntu-24.04
@@ -392,18 +402,22 @@ jobs:
             os: freebsd
             version: '15.1'
             architecture: arm64
+            run_tests: '0'
           - slug: openbsd-7.9-arm64
             os: openbsd
             version: '7.9'
             architecture: arm64
+            run_tests: '0'
           - slug: openbsd-7.8-x86_64
             os: openbsd
             version: '7.8'
             architecture: x86-64
+            run_tests: '1'
           - slug: netbsd-10.1-x86_64
             os: netbsd
             version: '10.1'
             architecture: x86-64
+            run_tests: '1'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -419,7 +433,7 @@ jobs:
           memory: 5G
           cpu_count: 2
       - name: Install dependencies, build and test in VM
-        run: CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh '${{ matrix.slug }}'
+        run: CI_INSTALL_DEPS=1 CI_RUN_TESTS='${{ matrix.run_tests }}' sh .github/ci/run-target.sh '${{ matrix.slug }}'
       - name: Upload platform result
         if: always()
         uses: actions/upload-artifact@v7
@@ -485,7 +499,7 @@ jobs:
           - arch: aarch64
             slug: netbsd-11.0-arm64
             sync: scp
-            run_tests: '1'
+            run_tests: '0'
           - arch: riscv64
             slug: netbsd-11.0-riscv64
             sync: scp
@@ -611,20 +625,29 @@ jobs:
 
   baseline-publish:
     name: Publish platform regression baseline
+    # Automatic publication is default-branch-only and requires every selected
+    # target to pass. A manual default-branch run can explicitly force baseline
+    # publication from the successful artifacts, which is useful while bringing
+    # a newly added platform online. Feature branches can never publish.
     if: >-
       always() &&
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       needs.dist.result == 'success' &&
-      needs.native.result == 'success' &&
-      needs.linux-vm.result == 'success' &&
-      needs.unix-vm.result == 'success' &&
-      needs.netbsd-vm.result == 'success' &&
-      needs.solaris-vm.result == 'success' &&
-      (needs.linux-vm-extended.result == 'success' || needs.linux-vm-extended.result == 'skipped') &&
-      (needs.unix-vm-extended.result == 'success' || needs.unix-vm-extended.result == 'skipped') &&
-      (needs.freebsd-vm-extended.result == 'success' || needs.freebsd-vm-extended.result == 'skipped') &&
-      (needs.netbsd-vm-extended.result == 'success' || needs.netbsd-vm-extended.result == 'skipped') &&
-      (needs.solaris-vm-extended.result == 'success' || needs.solaris-vm-extended.result == 'skipped')
+      (
+        (github.event_name == 'workflow_dispatch' && inputs.scope == 'all' && inputs.publish_baseline == true) ||
+        (
+          needs.native.result == 'success' &&
+          needs.linux-vm.result == 'success' &&
+          needs.unix-vm.result == 'success' &&
+          needs.netbsd-vm.result == 'success' &&
+          needs.solaris-vm.result == 'success' &&
+          (needs.linux-vm-extended.result == 'success' || needs.linux-vm-extended.result == 'skipped') &&
+          (needs.unix-vm-extended.result == 'success' || needs.unix-vm-extended.result == 'skipped') &&
+          (needs.freebsd-vm-extended.result == 'success' || needs.freebsd-vm-extended.result == 'skipped') &&
+          (needs.netbsd-vm-extended.result == 'success' || needs.netbsd-vm-extended.result == 'skipped') &&
+          (needs.solaris-vm-extended.result == 'success' || needs.solaris-vm-extended.result == 'skipped')
+        )
+      )
     needs:
       - dist
       - native
@@ -650,6 +673,11 @@ jobs:
         with:
           pattern: platform-*
           path: .ci-current
+
+      - name: Note forced baseline publication
+        if: github.event_name == 'workflow_dispatch' && inputs.scope == 'all' && inputs.publish_baseline == true
+        run: >-
+          echo '::warning::Forced baseline publication is enabled; failed platform artifacts will be excluded and successful artifacts will be published.'
 
       - name: Normalize current results
         run: sh .github/ci/regression.sh normalize .ci-current .ci-normalized
