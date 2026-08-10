@@ -25,7 +25,9 @@ fi
 
 out="$root/.ci-output/$slug"
 work="$root/.ci-work/$slug"
-rm -rf "$out" "$work"
+# run-target.sh may already have written deps.log into the output
+# directory.  Keep it while starting each build from a clean tree.
+rm -rf "$work"
 mkdir -p "$out" "$work"
 
 # Capture the actual kernel and compiler used.  Do not compare this file in the

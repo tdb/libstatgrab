@@ -22,7 +22,10 @@ as_root()
 
 check_test_perl()
 {
-    perl -MGetopt::Long -MTest::More=0.90 -MData::Dumper -MIPC::Cmd -e 1
+    # Test::More's minimum version must be expressed as a Perl use
+    # VERSION statement.  -MTest::More=0.90 would instead pass 0.90
+    # to Test::More::import(), which exits 255.
+    perl -e 'use Getopt::Long; use Test::More 0.90; use Data::Dumper; use IPC::Cmd;'
 }
 
 os=$(uname -s)

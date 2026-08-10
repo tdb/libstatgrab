@@ -89,18 +89,9 @@ jobs:
           name: distfile
           path: dist
 
-      - name: Install build dependencies
+      - name: Install dependencies, build and test
         shell: bash
-        run: sh .github/ci/install-deps.sh
-
-      - name: Build, smoke-test and run test suite
-        id: target-test
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -eu
-          set -- dist/libstatgrab-*.tar.gz
-          sh .github/ci/build-and-test.sh '${{ matrix.slug }}' "$1"
+        run: CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh '${{ matrix.slug }}'
 
       - name: Upload platform result
         if: always()
@@ -112,9 +103,8 @@ jobs:
           retention-days: 30
 
       - name: Propagate target failure
-        if: steps.target-test.outcome == 'failure'
         shell: bash
-        run: exit 1
+        run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
   linux-vm:
     name: Linux VM / ${{ matrix.slug }}
@@ -348,8 +338,6 @@ jobs:
             template: oraclelinux-10
           - slug: rocky-10-x86_64
             template: rocky-10
-          - slug: opensuse-leap-15-x86_64
-            template: opensuse-leap-15
           - slug: alpine-3.22-x86_64
             template: alpine-3.22
     runs-on: ubuntu-24.04

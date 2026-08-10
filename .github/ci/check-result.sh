@@ -23,7 +23,15 @@ case "$rc" in
 esac
 
 if [ "$rc" -ne 0 ]; then
-    echo "$slug failed inside its guest with exit code $rc; see the uploaded platform artifact." >&2
+    echo "$slug failed inside its guest with exit code $rc." >&2
+    for log in deps.log normal.log tests.log warnings.log config.normal.log config.tests.log; do
+        file=".ci-output/$slug/$log"
+        if [ -s "$file" ]; then
+            echo "===== $slug: tail of $log =====" >&2
+            tail -n 80 "$file" >&2 || true
+        fi
+    done
+    echo "Full diagnostics are in the uploaded platform-$slug artifact." >&2
     # Shell exit statuses are 0..255. build-and-test normally returns a small
     # value, but avoid surprising modulo behaviour if the file is corrupted.
     if [ "$rc" -gt 255 ]; then
