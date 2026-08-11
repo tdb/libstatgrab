@@ -11,6 +11,41 @@ usage()
     exit 2
 }
 
+# statgrab collection keys include a hardware- or guest-specific instance name:
+#   disk.<device>.<field>
+#   fs.<device>.<field>
+#   net.<interface>.<field>
+#
+# Hosted runner hardware can legitimately change those middle components between
+# runs.  Collapse them to a wildcard so the regression gate answers the question
+# we care about: did this platform stop exposing a statistic field?  The exact
+# statgrab.keys file is retained alongside the schema for diagnostics.
+canonicalize_keys()
+{
+    awk -F. '
+        ($1 == "disk" || $1 == "fs" || $1 == "net") && NF >= 3 {
+            print $1 ".*." $NF
+            next
+        }
+        { print }
+    ' "$1" | LC_ALL=C sort -u
+}
+
+schema_for()
+{
+    dir=$1
+    output=$2
+    if [ -f "$dir/statgrab.schema" ]; then
+        cp "$dir/statgrab.schema" "$output"
+    elif [ -f "$dir/statgrab.keys" ]; then
+        # Backwards compatibility with baselines created before statgrab.schema
+        # was introduced.
+        canonicalize_keys "$dir/statgrab.keys" > "$output"
+    else
+        return 1
+    fi
+}
+
 [ "$#" -ge 1 ] || usage
 mode=$1
 shift
@@ -54,11 +89,13 @@ case "$mode" in
                 continue
             fi
             mkdir -p "$dst/$name"
-            # Keep the historical normalization exactly: strip changing values,
-            # omit filesystem instances, and retain only aggregate user fields.
+            # Strip changing values and retain only aggregate user fields.  Keep
+            # the exact instance keys for diagnostics, then derive a stable
+            # capability schema which ignores device/interface identity.
             sed -e 's/ =.*$//' -e '/^fs.*:/d' "$artifact/statgrab" \
                 | perl -ne 'unless($_=~/^user\./&&$_!~/^user\.names\s+/&&$_!~/^user\.num\s+/){print}' \
                 | LC_ALL=C sort > "$dst/$name/statgrab.keys"
+            canonicalize_keys "$dst/$name/statgrab.keys" > "$dst/$name/statgrab.schema"
             cp "$artifact/config.h" "$dst/$name/config.h"
             if [ -f "$artifact/platform.txt" ]; then
                 cp "$artifact/platform.txt" "$dst/$name/platform.txt"
@@ -83,6 +120,12 @@ case "$mode" in
             echo "::notice::No CI regression baseline exists yet; the first successful default-branch run will create it."
             exit 0
         fi
+
+        tmp="$current/.compare-schema.$$"
+        rm -rf "$tmp"
+        mkdir -p "$tmp"
+        trap 'rm -rf "$tmp"' 0 1 2 3 15
+
         changed=0
         for platform in "$current"/platform-*; do
             [ -d "$platform" ] || continue
@@ -92,13 +135,47 @@ case "$mode" in
                 echo "::notice title=New CI platform::$name has no previous baseline"
                 continue
             fi
-            for file in statgrab.keys config.h; do
-                if ! cmp -s "$ref/$file" "$platform/$file"; then
-                    echo "::error title=CI regression::$name changed $file"
-                    diff -u "$ref/$file" "$platform/$file" || true
-                    changed=1
-                fi
-            done
+
+            current_schema="$tmp/$name.current.schema"
+            reference_schema="$tmp/$name.reference.schema"
+            if ! schema_for "$platform" "$current_schema"; then
+                echo "::error title=Incomplete CI regression input::$name has no current statgrab schema/keys"
+                changed=1
+                continue
+            fi
+            if ! schema_for "$ref" "$reference_schema"; then
+                echo "::error title=Incomplete CI baseline::$name has no baseline statgrab schema/keys"
+                changed=1
+                continue
+            fi
+
+            schema_changed=0
+            if ! cmp -s "$reference_schema" "$current_schema"; then
+                echo "::error title=CI regression::$name changed statgrab capability schema"
+                diff -u "$reference_schema" "$current_schema" || true
+                changed=1
+                schema_changed=1
+            fi
+
+            # Exact instance keys are useful context but are deliberately not a
+            # gating signal: GitHub-hosted runner disks, filesystems and PCI-based
+            # interface names can vary from one run to another.
+            if [ "$schema_changed" -eq 0 ] && \
+               [ -f "$ref/statgrab.keys" ] && [ -f "$platform/statgrab.keys" ] && \
+               ! cmp -s "$ref/statgrab.keys" "$platform/statgrab.keys"; then
+                removed=$(comm -23 "$ref/statgrab.keys" "$platform/statgrab.keys" | wc -l | tr -d '[:space:]')
+                added=$(comm -13 "$ref/statgrab.keys" "$platform/statgrab.keys" | wc -l | tr -d '[:space:]')
+                echo "::notice title=CI hardware inventory changed::$name changed instance keys ($removed removed, $added added), but its statistic schema is unchanged"
+            fi
+
+            if [ ! -f "$ref/config.h" ] || [ ! -f "$platform/config.h" ]; then
+                echo "::error title=Incomplete CI regression input::$name lacks config.h in current result or baseline"
+                changed=1
+            elif ! cmp -s "$ref/config.h" "$platform/config.h"; then
+                echo "::error title=CI regression::$name changed config.h"
+                diff -u "$ref/config.h" "$platform/config.h" || true
+                changed=1
+            fi
         done
         exit "$changed"
         ;;
