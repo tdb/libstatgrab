@@ -1,4 +1,4 @@
-Linux runnervmalrxg 7.0.0-1009-azure #9-Ubuntu SMP PREEMPT Fri Jun 19 15:57:36 UTC 2026 x86_64 GNU/Linux
+Linux runnervm4grx9 7.0.0-1011-azure #11-Ubuntu SMP PREEMPT Thu Jul 23 02:08:37 UTC 2026 x86_64 GNU/Linux
 --- /etc/os-release ---
 PRETTY_NAME="Ubuntu 26.04 LTS"
 NAME="Ubuntu"

@@ -1,4 +1,4 @@
-Darwin iad20-fj924-6f90c49e-627e-4671-8da6-f758b2b1603f-0E8F982374C1.local 25.5.0 Darwin Kernel Version 25.5.0: Tue Jun  9 22:26:00 PDT 2026; root:xnu-12377.121.10~1/RELEASE_ARM64_VMAPPLE arm64
+Darwin sjc22-bt149-d0b8e25c-f607-4f10-9ccd-7b3d73d8ae76-BAD374689529.local 25.5.0 Darwin Kernel Version 25.5.0: Tue Jun  9 22:26:00 PDT 2026; root:xnu-12377.121.10~1/RELEASE_ARM64_VMAPPLE arm64
 --- sw_vers ---
 ProductName:		macOS
 ProductVersion:		26.5.2
