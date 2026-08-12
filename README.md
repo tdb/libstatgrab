@@ -1,6 +1,7 @@
 # libstatgrab
 
-[![CI](https://github.com/libstatgrab/libstatgrab/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/libstatgrab/libstatgrab/actions/workflows/ci.yml?query=branch%3Amaster)
+[![CI](https://github.com/libstatgrab/libstatgrab/actions/workflows/ci.yml/badge.svg)](https://github.com/libstatgrab/libstatgrab/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/libstatgrab/libstatgrab/actions/workflows/codeql.yml/badge.svg)](https://github.com/libstatgrab/libstatgrab/actions/workflows/codeql.yml)
 
 https://libstatgrab.org/
 
