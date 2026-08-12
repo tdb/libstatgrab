@@ -64,25 +64,31 @@ jobs:
           retention-days: 14
 
   native:
-    name: Native / ${{ matrix.slug }}
+    name: Build & test — ${{ matrix.label }}
     if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     strategy:
       fail-fast: false
-      matrix:
+      matrix: &native_matrix
         include:
           - slug: ubuntu-22.04-x86_64
             runner: ubuntu-22.04
+            label: Ubuntu 22.04 (x86_64)
           - slug: ubuntu-24.04-x86_64
             runner: ubuntu-24.04
+            label: Ubuntu 24.04 (x86_64)
           - slug: ubuntu-26.04-x86_64
             runner: ubuntu-26.04
+            label: Ubuntu 26.04 (x86_64)
           - slug: ubuntu-24.04-arm64
             runner: ubuntu-24.04-arm
+            label: Ubuntu 24.04 (ARM64)
           - slug: macos-15-x86_64
             runner: macos-15-intel
+            label: macOS 15 (Intel)
           - slug: macos-26-arm64
             runner: macos-26
+            label: macOS 26 (Apple Silicon)
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Check out CI helpers
@@ -111,33 +117,79 @@ jobs:
         shell: bash
         run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
-  linux-vm:
-    name: Linux VM / ${{ matrix.slug }}
+  warnings-native:
+    name: Warnings — ${{ matrix.label }}
     if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     strategy:
       fail-fast: false
-      matrix:
+      matrix: *native_matrix
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out CI helpers
+        uses: actions/checkout@v7
+
+      - name: Download distribution tarball
+        uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+
+      - name: Run -Wall -Werror build
+        shell: bash
+        run: CI_INSTALL_DEPS=1 sh .github/ci/run-warning-target.sh '${{ matrix.slug }}'
+
+      - name: Report warning-build failure
+        id: warning_result
+        if: always()
+        shell: bash
+        run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
+
+      - name: Upload warning-build log
+        if: always() && steps.warning_result.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: warnings-${{ matrix.slug }}
+          path: .ci-warning-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 14
+    continue-on-error: true
+  linux-vm:
+    name: Build & test — ${{ matrix.label }}
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
+    needs: dist
+    strategy:
+      fail-fast: false
+      matrix: &linux_matrix
         include:
           - slug: debian-13-x86_64
             template: debian-13
+            label: Debian 13 (x86_64)
           - slug: fedora-44-x86_64
             template: fedora-44
+            label: Fedora 44 (x86_64)
           - slug: almalinux-10-x86_64
             template: almalinux-10
+            label: AlmaLinux 10 (x86_64)
           - slug: rocky-8-x86_64
             template: rocky-8
+            label: Rocky Linux 8 (x86_64)
           - slug: rocky-9-x86_64
             template: rocky-9
+            label: Rocky Linux 9 (x86_64)
           - slug: rocky-10-x86_64
             template: rocky-10
+            label: Rocky Linux 10 (x86_64)
           - slug: opensuse-leap-16-x86_64
             template: opensuse-leap-16
+            label: openSUSE Leap 16 (x86_64)
           # Lima has no built-in alpine-3.24 template yet; bump this when it does.
           - slug: alpine-3.23-x86_64
             template: alpine-3.23
+            label: Alpine Linux 3.23 (x86_64)
           - slug: archlinux-x86_64
             template: archlinux
+            label: Arch Linux (x86_64)
     runs-on: ubuntu-24.04
     steps:
       - name: Check out CI helpers
@@ -188,8 +240,66 @@ jobs:
       - name: Propagate target failure
         run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
+  warnings-linux-vm:
+    name: Warnings — ${{ matrix.label }}
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
+    needs: dist
+    strategy:
+      fail-fast: false
+      matrix: *linux_matrix
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out CI helpers
+        uses: actions/checkout@v7
+
+      - name: Download distribution tarball
+        uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+
+      - name: Set up Lima
+        uses: lima-vm/lima-actions/setup@v1
+
+      - name: Boot Linux VM
+        run: |
+          set -euxo pipefail
+          limactl start --plain --name=default --cpus=2 --memory=4 template:${{ matrix.template }}
+          limactl shell default -- sh -c 'rm -rf /tmp/libstatgrab && mkdir -p /tmp/libstatgrab'
+          limactl copy --backend=scp -r .github dist default:/tmp/libstatgrab/
+
+      - name: Run -Wall -Werror build
+        run: >-
+          limactl shell default -- sh -c "cd /tmp/libstatgrab && CI_INSTALL_DEPS=1 sh .github/ci/run-warning-target.sh '${{ matrix.slug }}'"
+
+      - name: Copy result out of VM
+        if: always()
+        run: |
+          mkdir -p .ci-warning-output
+          limactl copy --backend=scp -r \
+            default:/tmp/libstatgrab/.ci-warning-output/${{ matrix.slug }} \
+            .ci-warning-output/ || true
+
+      - name: Stop Linux VM
+        if: always()
+        run: limactl stop default || true
+
+      - name: Report warning-build failure
+        id: warning_result
+        if: always()
+        run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
+
+      - name: Upload warning-build log
+        if: always() && steps.warning_result.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: warnings-${{ matrix.slug }}
+          path: .ci-warning-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 14
+    continue-on-error: true
   unix-vm:
-    name: BSD/illumos VM / ${{ matrix.slug }}
+    name: Build & test — ${{ matrix.label }}
     if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
@@ -198,28 +308,33 @@ jobs:
         shell: cpa.sh {0}
     strategy:
       fail-fast: false
-      matrix:
+      matrix: &unix_matrix
         include:
           - slug: freebsd-15.1-x86_64
             os: freebsd
             version: '15.1'
             architecture: x86-64
+            label: FreeBSD 15.1 (x86_64)
           - slug: freebsd-14.4-x86_64
             os: freebsd
             version: '14.4'
             architecture: x86-64
+            label: FreeBSD 14.4 (x86_64)
           - slug: openbsd-7.9-x86_64
             os: openbsd
             version: '7.9'
             architecture: x86-64
+            label: OpenBSD 7.9 (x86_64)
           - slug: dragonflybsd-6.4.2-x86_64
             os: dragonflybsd
             version: '6.4.2'
             architecture: x86-64
+            label: DragonFlyBSD 6.4.2 (x86_64)
           - slug: omnios-r151058-x86_64
             os: omnios
             version: 'r151058'
             architecture: x86-64
+            label: OmniOS r151058 (x86_64)
     steps:
       - name: Check out CI helpers
         uses: actions/checkout@v7
@@ -231,7 +346,7 @@ jobs:
           path: dist
 
       - name: Boot ${{ matrix.os }} VM
-        uses: cross-platform-actions/action@v1.3.0
+        uses: cross-platform-actions/action@v1.4.0
         with:
           operating_system: ${{ matrix.os }}
           version: ${{ matrix.version }}
@@ -255,8 +370,56 @@ jobs:
         shell: bash
         run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
+  warnings-unix-vm:
+    name: Warnings — ${{ matrix.label }}
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
+    needs: dist
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: cpa.sh {0}
+    strategy:
+      fail-fast: false
+      matrix: *unix_matrix
+    steps:
+      - name: Check out CI helpers
+        uses: actions/checkout@v7
+
+      - name: Download distribution tarball
+        uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+
+      - name: Boot ${{ matrix.os }} VM
+        uses: cross-platform-actions/action@v1.4.0
+        with:
+          operating_system: ${{ matrix.os }}
+          version: ${{ matrix.version }}
+          architecture: ${{ matrix.architecture }}
+          memory: 5G
+          cpu_count: 2
+
+      - name: Run -Wall -Werror build
+        run: CI_INSTALL_DEPS=1 sh .github/ci/run-warning-target.sh '${{ matrix.slug }}'
+
+      - name: Report warning-build failure
+        id: warning_result
+        if: always()
+        shell: bash
+        run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
+
+      - name: Upload warning-build log
+        if: always() && steps.warning_result.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: warnings-${{ matrix.slug }}
+          path: .ci-warning-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 14
+    continue-on-error: true
   netbsd-vm:
-    name: NetBSD VM / 11.0 x86_64
+    name: Build & test — NetBSD 11.0 (x86_64)
     if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
@@ -286,8 +449,42 @@ jobs:
       - name: Propagate target failure
         run: sh .github/ci/check-result.sh netbsd-11.0-x86_64
 
+  warnings-netbsd-vm:
+    name: Warnings — NetBSD 11.0 (x86_64)
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
+    needs: dist
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Run -Wall -Werror build
+        uses: vmactions/netbsd-vm@v1.4.6
+        with:
+          release: '11.0'
+          usesh: true
+          sync: scp
+          run: |
+            CI_INSTALL_DEPS=1 sh .github/ci/run-warning-target.sh netbsd-11.0-x86_64
+            exit 0
+      - name: Report warning-build failure
+        id: warning_result
+        if: always()
+        run: sh .github/ci/check-warning-result.sh 'netbsd-11.0-x86_64'
+
+      - name: Upload warning-build log
+        if: always() && steps.warning_result.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: warnings-netbsd-11.0-x86_64
+          path: .ci-warning-output/netbsd-11.0-x86_64
+          if-no-files-found: warn
+          retention-days: 14
+    continue-on-error: true
   solaris-vm:
-    name: Oracle Solaris VM / 11.4 GCC
+    name: Build & test — Oracle Solaris 11.4 CBE (GCC, x86_64)
     if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
@@ -318,8 +515,43 @@ jobs:
       - name: Propagate target failure
         run: sh .github/ci/check-result.sh solaris-11.4-gcc-x86_64
 
+  warnings-solaris-vm:
+    name: Warnings — Oracle Solaris 11.4 CBE (GCC, x86_64)
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
+    needs: dist
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Run -Wall -Werror build
+        uses: vmactions/solaris-vm@v1.3.8
+        with:
+          release: '11.4-gcc'
+          usesh: true
+          sync: scp
+          prepare: |
+            command -v gmake >/dev/null 2>&1 || pkg install -v developer/build/gnu-make
+          run: |
+            CC=gcc MAKE=gmake sh .github/ci/run-warning-target.sh solaris-11.4-gcc-x86_64
+      - name: Report warning-build failure
+        id: warning_result
+        if: always()
+        run: sh .github/ci/check-warning-result.sh 'solaris-11.4-gcc-x86_64'
+
+      - name: Upload warning-build log
+        if: always() && steps.warning_result.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: warnings-solaris-11.4-gcc-x86_64
+          path: .ci-warning-output/solaris-11.4-gcc-x86_64
+          if-no-files-found: warn
+          retention-days: 14
+    continue-on-error: true
   linux-vm-extended:
-    name: Extended Linux VM / ${{ matrix.slug }}
+    name: Build & test (extended) — ${{ matrix.label }}
     if: >-
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
@@ -327,22 +559,29 @@ jobs:
     needs: dist
     strategy:
       fail-fast: false
-      matrix:
+      matrix: &linux_extended_matrix
         include:
           - slug: debian-12-x86_64
             template: debian-12
+            label: Debian 12 (x86_64)
           - slug: fedora-43-x86_64
             template: fedora-43
+            label: Fedora 43 (x86_64)
           - slug: almalinux-8-x86_64
             template: almalinux-8
+            label: AlmaLinux 8 (x86_64)
           - slug: almalinux-9-x86_64
             template: almalinux-9
+            label: AlmaLinux 9 (x86_64)
           - slug: centos-stream-10-x86_64
             template: centos-stream-10
+            label: CentOS Stream 10 (x86_64)
           - slug: oraclelinux-10-x86_64
             template: oraclelinux-10
+            label: Oracle Linux 10 (x86_64)
           - slug: alpine-3.22-x86_64
             template: alpine-3.22
+            label: Alpine Linux 3.22 (x86_64)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -383,8 +622,60 @@ jobs:
       - name: Propagate target failure
         run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
+  warnings-linux-vm-extended:
+    name: Warnings (extended) — ${{ matrix.label }}
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+    needs: dist
+    strategy:
+      fail-fast: false
+      matrix: *linux_extended_matrix
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Set up Lima
+        uses: lima-vm/lima-actions/setup@v1
+      - name: Boot Linux VM
+        run: |
+          set -euxo pipefail
+          limactl start --plain --name=default --cpus=2 --memory=4 template:${{ matrix.template }}
+          limactl shell default -- sh -c 'rm -rf /tmp/libstatgrab && mkdir -p /tmp/libstatgrab'
+          limactl copy --backend=scp -r .github dist default:/tmp/libstatgrab/
+      - name: Run -Wall -Werror build
+        run: >-
+          limactl shell default -- sh -c "cd /tmp/libstatgrab && CI_INSTALL_DEPS=1 sh .github/ci/run-warning-target.sh '${{ matrix.slug }}'"
+      - name: Copy result out of VM
+        if: always()
+        run: |
+          mkdir -p .ci-warning-output
+          limactl copy --backend=scp -r \
+            default:/tmp/libstatgrab/.ci-warning-output/${{ matrix.slug }} \
+            .ci-warning-output/ || true
+      - name: Stop Linux VM
+        if: always()
+        run: limactl stop default || true
+      - name: Report warning-build failure
+        id: warning_result
+        if: always()
+        run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
+
+      - name: Upload warning-build log
+        if: always() && steps.warning_result.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: warnings-${{ matrix.slug }}
+          path: .ci-warning-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 14
+    continue-on-error: true
   unix-vm-extended:
-    name: Extended BSD / ${{ matrix.slug }}
+    name: Build & test (extended) — ${{ matrix.label }}
     if: >-
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
@@ -396,28 +687,32 @@ jobs:
         shell: cpa.sh {0}
     strategy:
       fail-fast: false
-      matrix:
+      matrix: &unix_extended_matrix
         include:
           - slug: freebsd-15.1-arm64
             os: freebsd
             version: '15.1'
             architecture: arm64
             run_tests: '0'
+            label: FreeBSD 15.1 (ARM64)
           - slug: openbsd-7.9-arm64
             os: openbsd
             version: '7.9'
             architecture: arm64
             run_tests: '0'
+            label: OpenBSD 7.9 (ARM64)
           - slug: openbsd-7.8-x86_64
             os: openbsd
             version: '7.8'
             architecture: x86-64
             run_tests: '1'
+            label: OpenBSD 7.8 (x86_64)
           - slug: netbsd-10.1-x86_64
             os: netbsd
             version: '10.1'
             architecture: x86-64
             run_tests: '1'
+            label: NetBSD 10.1 (x86_64)
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -425,7 +720,7 @@ jobs:
           name: distfile
           path: dist
       - name: Boot ${{ matrix.os }} VM
-        uses: cross-platform-actions/action@v1.3.0
+        uses: cross-platform-actions/action@v1.4.0
         with:
           operating_system: ${{ matrix.os }}
           version: ${{ matrix.version }}
@@ -446,8 +741,53 @@ jobs:
         shell: bash
         run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
+  warnings-unix-vm-extended:
+    name: Warnings (extended) — ${{ matrix.label }}
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+    needs: dist
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: cpa.sh {0}
+    strategy:
+      fail-fast: false
+      matrix: *unix_extended_matrix
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Boot ${{ matrix.os }} VM
+        uses: cross-platform-actions/action@v1.4.0
+        with:
+          operating_system: ${{ matrix.os }}
+          version: ${{ matrix.version }}
+          architecture: ${{ matrix.architecture }}
+          memory: 5G
+          cpu_count: 2
+      - name: Run -Wall -Werror build
+        run: CI_INSTALL_DEPS=1 sh .github/ci/run-warning-target.sh '${{ matrix.slug }}'
+      - name: Report warning-build failure
+        id: warning_result
+        if: always()
+        shell: bash
+        run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
+
+      - name: Upload warning-build log
+        if: always() && steps.warning_result.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: warnings-${{ matrix.slug }}
+          path: .ci-warning-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 14
+    continue-on-error: true
   freebsd-vm-extended:
-    name: Extended FreeBSD 15.1 / riscv64
+    name: Build & test (extended) — FreeBSD 15.1 (RISC-V)
     if: >-
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
@@ -483,8 +823,48 @@ jobs:
       - name: Propagate target failure
         run: sh .github/ci/check-result.sh freebsd-15.1-riscv64
 
+  warnings-freebsd-vm-extended:
+    name: Warnings (extended) — FreeBSD 15.1 (RISC-V)
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+    needs: dist
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Run -Wall -Werror build
+        uses: vmactions/freebsd-vm@v1.5.3
+        with:
+          release: '15.1'
+          arch: riscv64
+          usesh: true
+          sync: scp
+          disable-cache: true
+          run: |
+            CI_INSTALL_DEPS=1 sh .github/ci/run-warning-target.sh freebsd-15.1-riscv64
+            exit 0
+      - name: Report warning-build failure
+        id: warning_result
+        if: always()
+        run: sh .github/ci/check-warning-result.sh 'freebsd-15.1-riscv64'
+
+      - name: Upload warning-build log
+        if: always() && steps.warning_result.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: warnings-freebsd-15.1-riscv64
+          path: .ci-warning-output/freebsd-15.1-riscv64
+          if-no-files-found: warn
+          retention-days: 14
+    continue-on-error: true
   netbsd-vm-extended:
-    name: Extended NetBSD 11.0 / ${{ matrix.arch }}
+    name: Build & test (extended) — ${{ matrix.label }}
     if: >-
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
@@ -494,20 +874,23 @@ jobs:
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      matrix:
+      matrix: &netbsd_extended_matrix
         include:
           - arch: aarch64
             slug: netbsd-11.0-arm64
             sync: scp
             run_tests: '0'
+            label: NetBSD 11.0 (ARM64)
           - arch: riscv64
             slug: netbsd-11.0-riscv64
             sync: scp
             run_tests: '0'
+            label: NetBSD 11.0 (RISC-V)
           - arch: sparc64
             slug: netbsd-11.0-sparc64
             sync: scp
             run_tests: '0'
+            label: NetBSD 11.0 (SPARC64)
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -536,8 +919,51 @@ jobs:
       - name: Propagate target failure
         run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
+  warnings-netbsd-vm-extended:
+    name: Warnings (extended) — ${{ matrix.label }}
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+    needs: dist
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix: *netbsd_extended_matrix
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Run -Wall -Werror build
+        uses: vmactions/netbsd-vm@v1.4.6
+        with:
+          release: '11.0'
+          arch: ${{ matrix.arch }}
+          usesh: true
+          sync: ${{ matrix.sync }}
+          disable-cache: true
+          run: |
+            CI_INSTALL_DEPS=1 sh .github/ci/run-warning-target.sh '${{ matrix.slug }}'
+            exit 0
+      - name: Report warning-build failure
+        id: warning_result
+        if: always()
+        run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
+
+      - name: Upload warning-build log
+        if: always() && steps.warning_result.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: warnings-${{ matrix.slug }}
+          path: .ci-warning-output/${{ matrix.slug }}
+          if-no-files-found: warn
+          retention-days: 14
+    continue-on-error: true
   solaris-vm-extended:
-    name: Extended Oracle Solaris / 11.4 Clang 19
+    name: Build & test (extended) — Oracle Solaris 11.4 CBE (Clang 19, x86_64)
     if: >-
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
@@ -572,6 +998,45 @@ jobs:
       - name: Propagate target failure
         run: sh .github/ci/check-result.sh solaris-11.4-clang19-x86_64
 
+  warnings-solaris-vm-extended:
+    name: Warnings (extended) — Oracle Solaris 11.4 CBE (Clang 19, x86_64)
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+    needs: dist
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+      - name: Run -Wall -Werror build
+        uses: vmactions/solaris-vm@v1.3.8
+        with:
+          release: '11.4-clang-19'
+          usesh: true
+          sync: scp
+          disable-cache: true
+          prepare: |
+            command -v gmake >/dev/null 2>&1 || pkg install -v developer/build/gnu-make
+          run: |
+            CC=clang MAKE=gmake sh .github/ci/run-warning-target.sh solaris-11.4-clang19-x86_64
+      - name: Report warning-build failure
+        id: warning_result
+        if: always()
+        run: sh .github/ci/check-warning-result.sh 'solaris-11.4-clang19-x86_64'
+
+      - name: Upload warning-build log
+        if: always() && steps.warning_result.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: warnings-solaris-11.4-clang19-x86_64
+          path: .ci-warning-output/solaris-11.4-clang19-x86_64
+          if-no-files-found: warn
+          retention-days: 14
+    continue-on-error: true
   regression:
     name: Platform regression check
     if: always() && needs.dist.result == 'success'
@@ -617,7 +1082,10 @@ jobs:
           fi
 
       - name: Compare with default-branch baseline
-        continue-on-error: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+        # A forced default-branch baseline publish is an explicit acknowledgement
+        # that the current schema/config changes are intentional. Normal runs,
+        # including ordinary default-branch pushes, must gate on regressions.
+        continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.scope == 'all' && inputs.publish_baseline == true }}
         run: >-
           sh .github/ci/regression.sh compare
           .ci-normalized
@@ -626,9 +1094,10 @@ jobs:
   baseline-publish:
     name: Publish platform regression baseline
     # Automatic publication is default-branch-only and requires every selected
-    # target to pass. A manual default-branch run can explicitly force baseline
-    # publication from the successful artifacts, which is useful while bringing
-    # a newly added platform online. Feature branches can never publish.
+    # target plus the regression comparison to pass. A manual default-branch run
+    # can explicitly force baseline publication from the successful artifacts,
+    # which is useful while bringing a newly added platform online. Feature
+    # branches can never publish.
     if: >-
       always() &&
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
@@ -641,6 +1110,7 @@ jobs:
           needs.unix-vm.result == 'success' &&
           needs.netbsd-vm.result == 'success' &&
           needs.solaris-vm.result == 'success' &&
+          needs.regression.result == 'success' &&
           (needs.linux-vm-extended.result == 'success' || needs.linux-vm-extended.result == 'skipped') &&
           (needs.unix-vm-extended.result == 'success' || needs.unix-vm-extended.result == 'skipped') &&
           (needs.freebsd-vm-extended.result == 'success' || needs.freebsd-vm-extended.result == 'skipped') &&
@@ -660,6 +1130,7 @@ jobs:
       - freebsd-vm-extended
       - netbsd-vm-extended
       - solaris-vm-extended
+      - regression
     runs-on: ubuntu-24.04
     permissions:
       contents: write

@@ -149,10 +149,12 @@ case "$os" in
         fi
         ;;
     DragonFly)
-        if ! command -v perl >/dev/null 2>&1; then
-            dragonfly_pkg_install perl5
+        if tests_enabled; then
+            if ! command -v perl >/dev/null 2>&1; then
+                dragonfly_pkg_install perl5
+            fi
+            check_test_perl
         fi
-        check_test_perl
         ;;
     NetBSD)
         if tests_enabled; then

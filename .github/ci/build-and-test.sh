@@ -1,8 +1,11 @@
 #!/bin/sh
-# Run the three useful parts of the old GitLab matrix in one booted machine:
+# Run the functional parts of the old GitLab matrix:
 #   1. normal examples build + statgrab smoke/regression capture
-#   2. -Wall -Werror build (recorded, deliberately non-blocking)
-#   3. clean --enable-tests build + make check (unless CI_RUN_TESTS=0)
+#   2. clean --enable-tests build + make check (unless CI_RUN_TESTS=0)
+#
+# The advisory -Wall -Werror build is intentionally a separate GitHub job;
+# see warning-build.sh. This keeps functional failures and compiler warnings
+# distinct in the Actions UI, matching the old GitLab CI layout.
 set -eu
 
 if [ "$#" -ne 2 ]; then
@@ -136,28 +139,6 @@ copy_if_present "$normal_src/config.log" "$out/config.normal.log"
 if [ "$normal_rc" -ne 0 ]; then
     cat "$out/normal.log" >&2
     exit "$normal_rc"
-fi
-
-warning_src=$(extract_tree "$work/warnings")
-set +e
-(
-    set -e
-    cd "$warning_src"
-    if [ -n "${CFLAGS:-}" ]; then
-        CFLAGS="$CFLAGS -Wall -Werror"
-    else
-        CFLAGS="-Wall -Werror"
-    fi
-    export CFLAGS
-    ./configure --enable-examples
-    "$make_cmd"
-) > "$out/warnings.log" 2>&1
-warning_rc=$?
-set -e
-copy_if_present "$warning_src/config.log" "$out/config.warnings.log"
-if [ "$warning_rc" -ne 0 ]; then
-    echo "$warning_rc" > "$out/warnings.failed"
-    echo "WARNING: -Wall -Werror build failed on $slug (non-blocking)" >&2
 fi
 
 if [ "${CI_RUN_TESTS:-1}" = 0 ]; then
