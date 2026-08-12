@@ -146,7 +146,7 @@ jobs:
         run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
 
       - name: Upload warning-build log
-        if: always() && steps.warning_result.outcome == 'failure'
+        if: always() && steps.warning_result.outputs.failed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: warnings-${{ matrix.slug }}
@@ -207,7 +207,7 @@ jobs:
       - name: Boot Linux VM
         run: |
           set -euxo pipefail
-          limactl start --plain --name=default --cpus=2 --memory=4 template:${{ matrix.template }}
+          sh .github/ci/start-lima.sh '${{ matrix.template }}'
           limactl shell default -- sh -c 'rm -rf /tmp/libstatgrab && mkdir -p /tmp/libstatgrab'
           limactl copy --backend=scp -r .github dist default:/tmp/libstatgrab/
 
@@ -264,7 +264,7 @@ jobs:
       - name: Boot Linux VM
         run: |
           set -euxo pipefail
-          limactl start --plain --name=default --cpus=2 --memory=4 template:${{ matrix.template }}
+          sh .github/ci/start-lima.sh '${{ matrix.template }}'
           limactl shell default -- sh -c 'rm -rf /tmp/libstatgrab && mkdir -p /tmp/libstatgrab'
           limactl copy --backend=scp -r .github dist default:/tmp/libstatgrab/
 
@@ -290,7 +290,7 @@ jobs:
         run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
 
       - name: Upload warning-build log
-        if: always() && steps.warning_result.outcome == 'failure'
+        if: always() && steps.warning_result.outputs.failed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: warnings-${{ matrix.slug }}
@@ -410,7 +410,7 @@ jobs:
         run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
 
       - name: Upload warning-build log
-        if: always() && steps.warning_result.outcome == 'failure'
+        if: always() && steps.warning_result.outputs.failed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: warnings-${{ matrix.slug }}
@@ -475,7 +475,7 @@ jobs:
         run: sh .github/ci/check-warning-result.sh 'netbsd-11.0-x86_64'
 
       - name: Upload warning-build log
-        if: always() && steps.warning_result.outcome == 'failure'
+        if: always() && steps.warning_result.outputs.failed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: warnings-netbsd-11.0-x86_64
@@ -542,7 +542,7 @@ jobs:
         run: sh .github/ci/check-warning-result.sh 'solaris-11.4-gcc-x86_64'
 
       - name: Upload warning-build log
-        if: always() && steps.warning_result.outcome == 'failure'
+        if: always() && steps.warning_result.outputs.failed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: warnings-solaris-11.4-gcc-x86_64
@@ -594,7 +594,7 @@ jobs:
       - name: Boot Linux VM
         run: |
           set -euxo pipefail
-          limactl start --plain --name=default --cpus=2 --memory=4 template:${{ matrix.template }}
+          sh .github/ci/start-lima.sh '${{ matrix.template }}'
           limactl shell default -- sh -c 'rm -rf /tmp/libstatgrab && mkdir -p /tmp/libstatgrab'
           limactl copy --backend=scp -r .github dist default:/tmp/libstatgrab/
       - name: Build, smoke-test and run test suite in VM
@@ -644,7 +644,7 @@ jobs:
       - name: Boot Linux VM
         run: |
           set -euxo pipefail
-          limactl start --plain --name=default --cpus=2 --memory=4 template:${{ matrix.template }}
+          sh .github/ci/start-lima.sh '${{ matrix.template }}'
           limactl shell default -- sh -c 'rm -rf /tmp/libstatgrab && mkdir -p /tmp/libstatgrab'
           limactl copy --backend=scp -r .github dist default:/tmp/libstatgrab/
       - name: Run -Wall -Werror build
@@ -666,7 +666,7 @@ jobs:
         run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
 
       - name: Upload warning-build log
-        if: always() && steps.warning_result.outcome == 'failure'
+        if: always() && steps.warning_result.outputs.failed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: warnings-${{ matrix.slug }}
@@ -778,7 +778,7 @@ jobs:
         run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
 
       - name: Upload warning-build log
-        if: always() && steps.warning_result.outcome == 'failure'
+        if: always() && steps.warning_result.outputs.failed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: warnings-${{ matrix.slug }}
@@ -855,7 +855,7 @@ jobs:
         run: sh .github/ci/check-warning-result.sh 'freebsd-15.1-riscv64'
 
       - name: Upload warning-build log
-        if: always() && steps.warning_result.outcome == 'failure'
+        if: always() && steps.warning_result.outputs.failed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: warnings-freebsd-15.1-riscv64
@@ -954,7 +954,7 @@ jobs:
         run: sh .github/ci/check-warning-result.sh '${{ matrix.slug }}'
 
       - name: Upload warning-build log
-        if: always() && steps.warning_result.outcome == 'failure'
+        if: always() && steps.warning_result.outputs.failed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: warnings-${{ matrix.slug }}
@@ -1029,7 +1029,7 @@ jobs:
         run: sh .github/ci/check-warning-result.sh 'solaris-11.4-clang19-x86_64'
 
       - name: Upload warning-build log
-        if: always() && steps.warning_result.outcome == 'failure'
+        if: always() && steps.warning_result.outputs.failed == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: warnings-solaris-11.4-clang19-x86_64
