@@ -63,6 +63,81 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  master-snapshot:
+    name: Publish master snapshot
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: dist
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SNAPSHOT_TAG: master-snapshot
+    steps:
+      - name: Download distribution tarball
+        uses: actions/download-artifact@v8
+        with:
+          name: distfile
+          path: dist
+
+      - name: Prepare public snapshot
+        run: |
+          set -euxo pipefail
+          set -- dist/libstatgrab-*.tar.gz
+          test "$#" -eq 1
+          cp "$1" libstatgrab-master.tar.gz
+          sha256sum libstatgrab-master.tar.gz > libstatgrab-master.tar.gz.sha256
+
+      - name: Publish rolling prerelease
+        env:
+          REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euxo pipefail
+          cat > snapshot-notes.md <<EOF
+          Automated release-style snapshot of [${COMMIT_SHA}](https://github.com/${REPOSITORY}/commit/${COMMIT_SHA}) from the repository default branch.
+
+          This is a development snapshot, not a formal libstatgrab release.
+          EOF
+
+          # Keep the rolling tag aligned with the commit that produced the assets.
+          if gh api "repos/${REPOSITORY}/git/ref/tags/${SNAPSHOT_TAG}" >/dev/null 2>&1; then
+            gh api --method PATCH \
+              "repos/${REPOSITORY}/git/refs/tags/${SNAPSHOT_TAG}" \
+              -f sha="$COMMIT_SHA" \
+              -F force=true
+          else
+            gh api --method POST \
+              "repos/${REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${SNAPSHOT_TAG}" \
+              -f sha="$COMMIT_SHA"
+          fi
+
+          if gh release view "$SNAPSHOT_TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$SNAPSHOT_TAG" \
+              --repo "$REPOSITORY" \
+              --title "Latest master snapshot" \
+              --notes-file snapshot-notes.md \
+              --prerelease
+            gh release upload "$SNAPSHOT_TAG" \
+              libstatgrab-master.tar.gz \
+              libstatgrab-master.tar.gz.sha256 \
+              --repo "$REPOSITORY" \
+              --clobber
+          else
+            gh release create "$SNAPSHOT_TAG" \
+              libstatgrab-master.tar.gz \
+              libstatgrab-master.tar.gz.sha256 \
+              --repo "$REPOSITORY" \
+              --verify-tag \
+              --title "Latest master snapshot" \
+              --notes-file snapshot-notes.md \
+              --prerelease \
+              --latest=false
+          fi
+
   native:
     name: Build & test — ${{ matrix.label }}
     if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
