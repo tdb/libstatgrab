@@ -7,22 +7,13 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
-      scope:
-        description: Which CI matrix to run
-        required: true
-        default: all
-        type: choice
-        options:
-          - all
-          - core
-          - extended
       publish_baseline:
-        description: Force baseline from successful targets (scope=all, default branch only)
+        description: Force baseline from successful targets (default branch only)
         required: true
         default: false
         type: boolean
   schedule:
-    # Full/extended matrix once a week. Times are UTC.
+    # Run the full matrix once a week even when there are no code changes. Times are UTC.
     - cron: '17 4 * * 0'
 
 permissions:
@@ -72,10 +63,12 @@ jobs:
     needs: dist
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      SNAPSHOT_TAG: master-snapshot
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Download distribution tarball
         uses: actions/download-artifact@v8
@@ -83,65 +76,47 @@ jobs:
           name: distfile
           path: dist
 
-      - name: Prepare public snapshot
+      - name: Prepare Pages site
         run: |
           set -euxo pipefail
           set -- dist/libstatgrab-*.tar.gz
           test "$#" -eq 1
-          cp "$1" libstatgrab-master.tar.gz
-          sha256sum libstatgrab-master.tar.gz > libstatgrab-master.tar.gz.sha256
-
-      - name: Publish rolling prerelease
-        env:
-          REPOSITORY: ${{ github.repository }}
-          COMMIT_SHA: ${{ github.sha }}
-        run: |
-          set -euxo pipefail
-          cat > snapshot-notes.md <<EOF
-          Automated release-style snapshot of [${COMMIT_SHA}](https://github.com/${REPOSITORY}/commit/${COMMIT_SHA}) from the repository default branch.
-
-          This is a development snapshot, not a formal libstatgrab release.
+          rm -rf pages
+          mkdir pages
+          cp "$1" pages/libstatgrab-master.tar.gz
+          (
+            cd pages
+            sha256sum libstatgrab-master.tar.gz > libstatgrab-master.tar.gz.sha256
+            printf '%s\n' "$GITHUB_SHA" > SOURCE_SHA
+            cat > index.html <<EOF
+          <!doctype html>
+          <html lang="en">
+          <head><meta charset="utf-8"><title>libstatgrab master snapshot</title></head>
+          <body>
+          <h1>libstatgrab master snapshot</h1>
+          <p>Release-style distribution generated from commit <code>$GITHUB_SHA</code>.</p>
+          <ul>
+            <li><a href="libstatgrab-master.tar.gz">libstatgrab-master.tar.gz</a></li>
+            <li><a href="libstatgrab-master.tar.gz.sha256">SHA-256 checksum</a></li>
+            <li><a href="SOURCE_SHA">source commit</a></li>
+          </ul>
+          </body>
+          </html>
           EOF
+          )
 
-          # Keep the rolling tag aligned with the commit that produced the assets.
-          if gh api "repos/${REPOSITORY}/git/ref/tags/${SNAPSHOT_TAG}" >/dev/null 2>&1; then
-            gh api --method PATCH \
-              "repos/${REPOSITORY}/git/refs/tags/${SNAPSHOT_TAG}" \
-              -f sha="$COMMIT_SHA" \
-              -F force=true
-          else
-            gh api --method POST \
-              "repos/${REPOSITORY}/git/refs" \
-              -f ref="refs/tags/${SNAPSHOT_TAG}" \
-              -f sha="$COMMIT_SHA"
-          fi
-
-          if gh release view "$SNAPSHOT_TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "$SNAPSHOT_TAG" \
-              --repo "$REPOSITORY" \
-              --title "Latest master snapshot" \
-              --notes-file snapshot-notes.md \
-              --prerelease
-            gh release upload "$SNAPSHOT_TAG" \
-              libstatgrab-master.tar.gz \
-              libstatgrab-master.tar.gz.sha256 \
-              --repo "$REPOSITORY" \
-              --clobber
-          else
-            gh release create "$SNAPSHOT_TAG" \
-              libstatgrab-master.tar.gz \
-              libstatgrab-master.tar.gz.sha256 \
-              --repo "$REPOSITORY" \
-              --verify-tag \
-              --title "Latest master snapshot" \
-              --notes-file snapshot-notes.md \
-              --prerelease \
-              --latest=false
-          fi
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
 
   native:
     name: Build & test — ${{ matrix.label }}
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     strategy:
       fail-fast: false
@@ -195,7 +170,6 @@ jobs:
 
   warnings-native:
     name: Warnings — ${{ matrix.label }}
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     strategy:
       fail-fast: false
@@ -232,7 +206,6 @@ jobs:
     continue-on-error: true
   linux-vm:
     name: Build & test — ${{ matrix.label }}
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     strategy:
       fail-fast: false
@@ -318,7 +291,6 @@ jobs:
 
   warnings-linux-vm:
     name: Warnings — ${{ matrix.label }}
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     strategy:
       fail-fast: false
@@ -376,7 +348,6 @@ jobs:
     continue-on-error: true
   unix-vm:
     name: Build & test — ${{ matrix.label }}
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
     defaults:
@@ -422,7 +393,7 @@ jobs:
           path: dist
 
       - name: Boot ${{ matrix.os }} VM
-        uses: cross-platform-actions/action@v1.4.0
+        uses: cross-platform-actions/action@v1.5.0
         with:
           operating_system: ${{ matrix.os }}
           version: ${{ matrix.version }}
@@ -448,7 +419,6 @@ jobs:
 
   warnings-unix-vm:
     name: Warnings — ${{ matrix.label }}
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
     defaults:
@@ -468,7 +438,7 @@ jobs:
           path: dist
 
       - name: Boot ${{ matrix.os }} VM
-        uses: cross-platform-actions/action@v1.4.0
+        uses: cross-platform-actions/action@v1.5.0
         with:
           operating_system: ${{ matrix.os }}
           version: ${{ matrix.version }}
@@ -496,7 +466,6 @@ jobs:
     continue-on-error: true
   netbsd-vm:
     name: Build & test — NetBSD 11.0 (x86_64)
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
     steps:
@@ -506,7 +475,7 @@ jobs:
           name: distfile
           path: dist
       - name: Build and test in NetBSD 11.0
-        uses: vmactions/netbsd-vm@v1.4.6
+        uses: vmactions/netbsd-vm@v1.4.8
         with:
           release: '11.0'
           usesh: true
@@ -527,7 +496,6 @@ jobs:
 
   warnings-netbsd-vm:
     name: Warnings — NetBSD 11.0 (x86_64)
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
     steps:
@@ -537,7 +505,7 @@ jobs:
           name: distfile
           path: dist
       - name: Run -Wall -Werror build
-        uses: vmactions/netbsd-vm@v1.4.6
+        uses: vmactions/netbsd-vm@v1.4.8
         with:
           release: '11.0'
           usesh: true
@@ -561,7 +529,6 @@ jobs:
     continue-on-error: true
   solaris-vm:
     name: Build & test — Oracle Solaris 11.4 CBE (GCC, x86_64)
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
     steps:
@@ -571,7 +538,7 @@ jobs:
           name: distfile
           path: dist
       - name: Build and test in Oracle Solaris 11.4 CBE
-        uses: vmactions/solaris-vm@v1.3.8
+        uses: vmactions/solaris-vm@v1.3.9
         with:
           release: '11.4-gcc'
           usesh: true
@@ -593,7 +560,6 @@ jobs:
 
   warnings-solaris-vm:
     name: Warnings — Oracle Solaris 11.4 CBE (GCC, x86_64)
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'extended'
     needs: dist
     runs-on: ubuntu-24.04
     steps:
@@ -603,7 +569,7 @@ jobs:
           name: distfile
           path: dist
       - name: Run -Wall -Werror build
-        uses: vmactions/solaris-vm@v1.3.8
+        uses: vmactions/solaris-vm@v1.3.9
         with:
           release: '11.4-gcc'
           usesh: true
@@ -626,16 +592,12 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
     continue-on-error: true
-  linux-vm-extended:
-    name: Build & test (extended) — ${{ matrix.label }}
-    if: >-
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+  linux-vm-compat:
+    name: Build & test — ${{ matrix.label }}
     needs: dist
     strategy:
       fail-fast: false
-      matrix: &linux_extended_matrix
+      matrix: &linux_compat_matrix
         include:
           - slug: debian-12-x86_64
             template: debian-12
@@ -698,16 +660,12 @@ jobs:
       - name: Propagate target failure
         run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
-  warnings-linux-vm-extended:
-    name: Warnings (extended) — ${{ matrix.label }}
-    if: >-
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+  warnings-linux-vm-compat:
+    name: Warnings — ${{ matrix.label }}
     needs: dist
     strategy:
       fail-fast: false
-      matrix: *linux_extended_matrix
+      matrix: *linux_compat_matrix
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -750,12 +708,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
     continue-on-error: true
-  unix-vm-extended:
-    name: Build & test (extended) — ${{ matrix.label }}
-    if: >-
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+  unix-vm-additional:
+    name: Build & test — ${{ matrix.label }}
     needs: dist
     runs-on: ubuntu-24.04
     defaults:
@@ -763,7 +717,7 @@ jobs:
         shell: cpa.sh {0}
     strategy:
       fail-fast: false
-      matrix: &unix_extended_matrix
+      matrix: &unix_additional_matrix
         include:
           - slug: freebsd-15.1-arm64
             os: freebsd
@@ -796,7 +750,7 @@ jobs:
           name: distfile
           path: dist
       - name: Boot ${{ matrix.os }} VM
-        uses: cross-platform-actions/action@v1.4.0
+        uses: cross-platform-actions/action@v1.5.0
         with:
           operating_system: ${{ matrix.os }}
           version: ${{ matrix.version }}
@@ -817,12 +771,8 @@ jobs:
         shell: bash
         run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
-  warnings-unix-vm-extended:
-    name: Warnings (extended) — ${{ matrix.label }}
-    if: >-
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+  warnings-unix-vm-additional:
+    name: Warnings — ${{ matrix.label }}
     needs: dist
     runs-on: ubuntu-24.04
     defaults:
@@ -830,7 +780,7 @@ jobs:
         shell: cpa.sh {0}
     strategy:
       fail-fast: false
-      matrix: *unix_extended_matrix
+      matrix: *unix_additional_matrix
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -838,7 +788,7 @@ jobs:
           name: distfile
           path: dist
       - name: Boot ${{ matrix.os }} VM
-        uses: cross-platform-actions/action@v1.4.0
+        uses: cross-platform-actions/action@v1.5.0
         with:
           operating_system: ${{ matrix.os }}
           version: ${{ matrix.version }}
@@ -862,12 +812,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
     continue-on-error: true
-  freebsd-vm-extended:
-    name: Build & test (extended) — FreeBSD 15.1 (RISC-V)
-    if: >-
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+  freebsd-riscv-vm:
+    name: Build & test — FreeBSD 15.1 (RISC-V)
     needs: dist
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -878,7 +824,7 @@ jobs:
           name: distfile
           path: dist
       - name: Build and test in FreeBSD 15.1 RISC-V
-        uses: vmactions/freebsd-vm@v1.5.3
+        uses: vmactions/freebsd-vm@v1.5.5
         with:
           release: '15.1'
           arch: riscv64
@@ -899,12 +845,8 @@ jobs:
       - name: Propagate target failure
         run: sh .github/ci/check-result.sh freebsd-15.1-riscv64
 
-  warnings-freebsd-vm-extended:
-    name: Warnings (extended) — FreeBSD 15.1 (RISC-V)
-    if: >-
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+  warnings-freebsd-riscv-vm:
+    name: Warnings — FreeBSD 15.1 (RISC-V)
     needs: dist
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -915,7 +857,7 @@ jobs:
           name: distfile
           path: dist
       - name: Run -Wall -Werror build
-        uses: vmactions/freebsd-vm@v1.5.3
+        uses: vmactions/freebsd-vm@v1.5.5
         with:
           release: '15.1'
           arch: riscv64
@@ -939,18 +881,14 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
     continue-on-error: true
-  netbsd-vm-extended:
-    name: Build & test (extended) — ${{ matrix.label }}
-    if: >-
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+  netbsd-arch-vm:
+    name: Build & test — ${{ matrix.label }}
     needs: dist
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      matrix: &netbsd_extended_matrix
+      matrix: &netbsd_arch_matrix
         include:
           - arch: aarch64
             slug: netbsd-11.0-arm64
@@ -974,7 +912,7 @@ jobs:
           name: distfile
           path: dist
       - name: Build and test in NetBSD 11.0 ${{ matrix.arch }}
-        uses: vmactions/netbsd-vm@v1.4.6
+        uses: vmactions/netbsd-vm@v1.4.8
         with:
           release: '11.0'
           arch: ${{ matrix.arch }}
@@ -995,18 +933,14 @@ jobs:
       - name: Propagate target failure
         run: sh .github/ci/check-result.sh '${{ matrix.slug }}'
 
-  warnings-netbsd-vm-extended:
-    name: Warnings (extended) — ${{ matrix.label }}
-    if: >-
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+  warnings-netbsd-arch-vm:
+    name: Warnings — ${{ matrix.label }}
     needs: dist
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      matrix: *netbsd_extended_matrix
+      matrix: *netbsd_arch_matrix
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -1014,7 +948,7 @@ jobs:
           name: distfile
           path: dist
       - name: Run -Wall -Werror build
-        uses: vmactions/netbsd-vm@v1.4.6
+        uses: vmactions/netbsd-vm@v1.4.8
         with:
           release: '11.0'
           arch: ${{ matrix.arch }}
@@ -1038,12 +972,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
     continue-on-error: true
-  solaris-vm-extended:
-    name: Build & test (extended) — Oracle Solaris 11.4 CBE (Clang 19, x86_64)
-    if: >-
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+  solaris-clang-vm:
+    name: Build & test — Oracle Solaris 11.4 CBE (Clang 19, x86_64)
     needs: dist
     runs-on: ubuntu-24.04
     steps:
@@ -1053,7 +983,7 @@ jobs:
           name: distfile
           path: dist
       - name: Build and test with Clang in Oracle Solaris 11.4 CBE
-        uses: vmactions/solaris-vm@v1.3.8
+        uses: vmactions/solaris-vm@v1.3.9
         with:
           release: '11.4-clang-19'
           usesh: true
@@ -1074,12 +1004,8 @@ jobs:
       - name: Propagate target failure
         run: sh .github/ci/check-result.sh solaris-11.4-clang19-x86_64
 
-  warnings-solaris-vm-extended:
-    name: Warnings (extended) — Oracle Solaris 11.4 CBE (Clang 19, x86_64)
-    if: >-
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.scope != 'core') ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[extended]'))
+  warnings-solaris-clang-vm:
+    name: Warnings — Oracle Solaris 11.4 CBE (Clang 19, x86_64)
     needs: dist
     runs-on: ubuntu-24.04
     steps:
@@ -1089,7 +1015,7 @@ jobs:
           name: distfile
           path: dist
       - name: Run -Wall -Werror build
-        uses: vmactions/solaris-vm@v1.3.8
+        uses: vmactions/solaris-vm@v1.3.9
         with:
           release: '11.4-clang-19'
           usesh: true
@@ -1123,11 +1049,11 @@ jobs:
       - unix-vm
       - netbsd-vm
       - solaris-vm
-      - linux-vm-extended
-      - unix-vm-extended
-      - freebsd-vm-extended
-      - netbsd-vm-extended
-      - solaris-vm-extended
+      - linux-vm-compat
+      - unix-vm-additional
+      - freebsd-riscv-vm
+      - netbsd-arch-vm
+      - solaris-clang-vm
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -1161,7 +1087,7 @@ jobs:
         # A forced default-branch baseline publish is an explicit acknowledgement
         # that the current schema/config changes are intentional. Normal runs,
         # including ordinary default-branch pushes, must gate on regressions.
-        continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.scope == 'all' && inputs.publish_baseline == true }}
+        continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_baseline == true }}
         run: >-
           sh .github/ci/regression.sh compare
           .ci-normalized
@@ -1169,7 +1095,7 @@ jobs:
 
   baseline-publish:
     name: Publish platform regression baseline
-    # Automatic publication is default-branch-only and requires every selected
+    # Automatic publication is default-branch-only and requires every platform
     # target plus the regression comparison to pass. A manual default-branch run
     # can explicitly force baseline publication from the successful artifacts,
     # which is useful while bringing a newly added platform online. Feature
@@ -1180,7 +1106,7 @@ jobs:
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       needs.dist.result == 'success' &&
       (
-        (github.event_name == 'workflow_dispatch' && inputs.scope == 'all' && inputs.publish_baseline == true) ||
+        (github.event_name == 'workflow_dispatch' && inputs.publish_baseline == true) ||
         (
           needs.native.result == 'success' &&
           needs.linux-vm.result == 'success' &&
@@ -1188,11 +1114,11 @@ jobs:
           needs.netbsd-vm.result == 'success' &&
           needs.solaris-vm.result == 'success' &&
           needs.regression.result == 'success' &&
-          (needs.linux-vm-extended.result == 'success' || needs.linux-vm-extended.result == 'skipped') &&
-          (needs.unix-vm-extended.result == 'success' || needs.unix-vm-extended.result == 'skipped') &&
-          (needs.freebsd-vm-extended.result == 'success' || needs.freebsd-vm-extended.result == 'skipped') &&
-          (needs.netbsd-vm-extended.result == 'success' || needs.netbsd-vm-extended.result == 'skipped') &&
-          (needs.solaris-vm-extended.result == 'success' || needs.solaris-vm-extended.result == 'skipped')
+          needs.linux-vm-compat.result == 'success' &&
+          needs.unix-vm-additional.result == 'success' &&
+          needs.freebsd-riscv-vm.result == 'success' &&
+          needs.netbsd-arch-vm.result == 'success' &&
+          needs.solaris-clang-vm.result == 'success'
         )
       )
     needs:
@@ -1202,11 +1128,11 @@ jobs:
       - unix-vm
       - netbsd-vm
       - solaris-vm
-      - linux-vm-extended
-      - unix-vm-extended
-      - freebsd-vm-extended
-      - netbsd-vm-extended
-      - solaris-vm-extended
+      - linux-vm-compat
+      - unix-vm-additional
+      - freebsd-riscv-vm
+      - netbsd-arch-vm
+      - solaris-clang-vm
       - regression
     runs-on: ubuntu-24.04
     permissions:
@@ -1223,7 +1149,7 @@ jobs:
           path: .ci-current
 
       - name: Note forced baseline publication
-        if: github.event_name == 'workflow_dispatch' && inputs.scope == 'all' && inputs.publish_baseline == true
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_baseline == true
         run: >-
           echo '::warning::Forced baseline publication is enabled; failed platform artifacts will be excluded and successful artifacts will be published.'
 

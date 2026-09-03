@@ -23,7 +23,7 @@ After this the normal build procedure in the [README](README) file can be follow
 
 ## Git master tarball
 
-Our CI builds a release-style tarball every time a commit is pushed to master. You can download the [latest master tarball](https://github.com/libstatgrab/libstatgrab/releases/download/master-snapshot/libstatgrab-master.tar.gz), along with its [SHA-256 checksum](https://github.com/libstatgrab/libstatgrab/releases/download/master-snapshot/libstatgrab-master.tar.gz.sha256). This gives you an archive built in the same way as a release, and is useful for testing the latest code without having to generate the distribution tarball yourself.
+Our CI builds a release-style tarball every time a commit is pushed to master. You can download the [latest master tarball](https://libstatgrab.org/libstatgrab/libstatgrab-master.tar.gz), along with its [SHA-256 checksum](https://libstatgrab.org/libstatgrab/libstatgrab-master.tar.gz.sha256). This gives you an archive built in the same way as a release, and is useful for testing the latest code without having to generate the distribution tarball yourself.
 
 ## Reporting bugs or issues
 
