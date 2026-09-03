@@ -626,6 +626,9 @@
 /* Define to 1 if you have the <sys/dr.h> header file. */
 /* #undef HAVE_SYS_DR_H */
 
+/* Define to 1 if you have the <sys/file.h> header file. */
+#define HAVE_SYS_FILE_H 1
+
 /* Define to 1 if you have the <sys/fstyp.h> header file. */
 #define HAVE_SYS_FSTYP_H 1
 

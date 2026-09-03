@@ -5,7 +5,7 @@
 /* #undef AIX */
 
 /* Building on some kind of BSD */
-#define ALLBSD /**/
+/* #undef ALLBSD */
 
 /* Building on Cygwin */
 /* #undef CYGWIN */
@@ -38,10 +38,10 @@
 #define FMT_UID_T "%u"
 
 /* Building on FreeBSD */
-#define FREEBSD /**/
+/* #undef FREEBSD */
 
 /* Building on FreeBSD 5+ */
-#define FREEBSD5 /**/
+/* #undef FREEBSD5 */
 
 /* define when getmntent_r returns success code */
 /* #undef GETMNTENT_R_RETURN_INT */
@@ -69,7 +69,7 @@
 
 /* Define to 1 if you have the declaration of `endutent', and to 0 if you
    don't. */
-/* #undef HAVE_DECL_ENDUTENT */
+#define HAVE_DECL_ENDUTENT 1
 
 /* Define to 1 if you have the declaration of `endutxent', and to 0 if you
    don't. */
@@ -86,7 +86,7 @@
 
 /* Define to 1 if you have the declaration of `getutent', and to 0 if you
    don't. */
-/* #undef HAVE_DECL_GETUTENT */
+#define HAVE_DECL_GETUTENT 1
 
 /* Define to 1 if you have the declaration of `getutxent', and to 0 if you
    don't. */
@@ -100,7 +100,7 @@
 
 /* Define to 1 if you have the declaration of `setutent', and to 0 if you
    don't. */
-/* #undef HAVE_DECL_SETUTENT */
+#define HAVE_DECL_SETUTENT 1
 
 /* Define to 1 if you have the declaration of `setutxent', and to 0 if you
    don't. */
@@ -115,19 +115,19 @@
 #define HAVE_DECL_STRLCPY 1
 
 /* struct devstat.bytes array available */
-#define HAVE_DEVSTAT_BYTES 1
+/* #undef HAVE_DEVSTAT_BYTES */
 
 /* struct devstat.bytes_read available */
 /* #undef HAVE_DEVSTAT_BYTES_READ */
 
 /* Define to 1 if you have the `devstat_getdevs' function. */
-#define HAVE_DEVSTAT_GETDEVS 1
+/* #undef HAVE_DEVSTAT_GETDEVS */
 
 /* Define to 1 if you have the <devstat.h> header file. */
-#define HAVE_DEVSTAT_H 1
+/* #undef HAVE_DEVSTAT_H */
 
 /* Define to 1 if you have the `devstat_selectdevs' function. */
-#define HAVE_DEVSTAT_SELECTDEVS 1
+/* #undef HAVE_DEVSTAT_SELECTDEVS */
 
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
    */
@@ -146,7 +146,7 @@
 #define HAVE_DLFCN_H 1
 
 /* Define to 1 if you have the `endutent' function. */
-/* #undef HAVE_ENDUTENT */
+#define HAVE_ENDUTENT 1
 
 /* Define to 1 if you have the `endutxent' function. */
 #define HAVE_ENDUTXENT 1
@@ -173,19 +173,19 @@
 /* #undef HAVE_GETDEVS */
 
 /* Define to 1 if you have the `getfsstat' function. */
-#define HAVE_GETFSSTAT 1
+/* #undef HAVE_GETFSSTAT */
 
 /* Define to 1 if you have the `getloadavg' function. */
 #define HAVE_GETLOADAVG 1
 
 /* Define to 1 if you have the `getmntent' function. */
-/* #undef HAVE_GETMNTENT */
+#define HAVE_GETMNTENT 1
 
 /* Define to 1 if you have the `getmntent_r' function. */
 /* #undef HAVE_GETMNTENT_R */
 
 /* Define to 1 if you have the `getutent' function. */
-/* #undef HAVE_GETUTENT */
+#define HAVE_GETUTENT 1
 
 /* Define to 1 if you have the `getutxent' function. */
 #define HAVE_GETUTXENT 1
@@ -200,7 +200,7 @@
 /* #undef HAVE_HOST_STATISTICS64 */
 
 /* Define to 1 if you have the <ifaddrs.h> header file. */
-#define HAVE_IFADDRS_H 1
+/* #undef HAVE_IFADDRS_H */
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
@@ -218,7 +218,7 @@
 /* #undef HAVE_KINFO_H */
 
 /* ki_stat member of struct kinfo_proc available */
-#define HAVE_KINFO_PROC_KI_STAT 1
+/* #undef HAVE_KINFO_PROC_KI_STAT */
 
 /* kp_eproc member of struct kinfo_proc available */
 /* #undef HAVE_KINFO_PROC_KP_EPROC */
@@ -233,7 +233,7 @@
 /* #undef HAVE_KINFO_PROC_KP_PROC */
 
 /* ki_structsize member of struct kinfo_proc available */
-#define HAVE_KINFO_PROC_KP_THREAD 1
+/* #undef HAVE_KINFO_PROC_KP_THREAD */
 
 /* p_pid member of struct kinfo_proc available */
 /* #undef HAVE_KINFO_PROC_P_PID */
@@ -245,10 +245,10 @@
 /* #undef HAVE_KINFO_PROC_P_VM_MAP_SIZE */
 
 /* Define to 1 if you have the <kstat.h> header file. */
-/* #undef HAVE_KSTAT_H */
+#define HAVE_KSTAT_H 1
 
 /* Define to 1 if you have the <libdevinfo.h> header file. */
-/* #undef HAVE_LIBDEVINFO_H */
+#define HAVE_LIBDEVINFO_H 1
 
 /* Define to 1 if you have the <libgen.h> header file. */
 #define HAVE_LIBGEN_H 1
@@ -257,7 +257,7 @@
 /* #undef HAVE_LIBPERFSTAT_H */
 
 /* Define to 1 if you have the <libproc.h> header file. */
-#define HAVE_LIBPROC_H 1
+/* #undef HAVE_LIBPROC_H */
 
 /* Define to 1 if you have the <limits.h> header file. */
 #define HAVE_LIMITS_H 1
@@ -311,10 +311,10 @@
 /* #undef HAVE_MNTENT_H */
 
 /* Define to 1 if you have the <ncurses.h> header file. */
-#define HAVE_NCURSES_H 1
+/* #undef HAVE_NCURSES_H */
 
 /* Define to 1 if you have the <ncurses/ncurses.h> header file. */
-/* #undef HAVE_NCURSES_NCURSES_H */
+#define HAVE_NCURSES_NCURSES_H 1
 
 /* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
 /* #undef HAVE_NDIR_H */
@@ -323,7 +323,7 @@
 #define HAVE_NETDB_H 1
 
 /* Define to 1 if you have the <netinet/if_ether.h> header file. */
-#define HAVE_NETINET_IF_ETHER_H 1
+/* #undef HAVE_NETINET_IF_ETHER_H */
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #define HAVE_NETINET_IN_H 1
@@ -332,7 +332,7 @@
 #define HAVE_NET_IF_H 1
 
 /* Define to 1 if you have the <net/if_media.h> header file. */
-#define HAVE_NET_IF_MEDIA_H 1
+/* #undef HAVE_NET_IF_MEDIA_H */
 
 /* define this when array at struct end might be open */
 #define HAVE_OPEN_ARRAY_AT_STRUCT_END 1
@@ -347,10 +347,10 @@
 /* #undef HAVE_PROCESS_H */
 
 /* Define to signal that procfs is available */
-/* #undef HAVE_PROCFS */
+#define HAVE_PROCFS 1
 
 /* Define to 1 if you have the <procfs.h> header file. */
-/* #undef HAVE_PROCFS_H */
+#define HAVE_PROCFS_H 1
 
 /* Define to 1 if you have the <procinfo.h> header file. */
 /* #undef HAVE_PROCINFO_H */
@@ -395,13 +395,13 @@
 /* #undef HAVE_SETLINEBUF */
 
 /* Define to 1 if you have the `setresgid' function. */
-#define HAVE_SETRESGID 1
+/* #undef HAVE_SETRESGID */
 
 /* Define to 1 if you have the `setresuid' function. */
-#define HAVE_SETRESUID 1
+/* #undef HAVE_SETRESUID */
 
 /* Define to 1 if you have the `setutent' function. */
-/* #undef HAVE_SETUTENT */
+#define HAVE_SETUTENT 1
 
 /* Define to 1 if you have the `setutxent' function. */
 #define HAVE_SETUTXENT 1
@@ -422,7 +422,7 @@
 /* #undef HAVE_STATFS_FFRSIZE */
 
 /* define when statfs has f_iosize member */
-#define HAVE_STATFS_FIOSIZE /**/
+/* #undef HAVE_STATFS_FIOSIZE */
 
 /* Define to 1 if you have the `statvfs' function. */
 #define HAVE_STATVFS 1
@@ -431,10 +431,10 @@
 /* #undef HAVE_STATVFS64 */
 
 /* Solaris etc. extended statvfs64 */
-/* #undef HAVE_STATVFS64_FBASETYPE */
+#define HAVE_STATVFS64_FBASETYPE /**/
 
 /* another Solaris extension */
-/* #undef HAVE_STATVFS64_FFRSIZE */
+#define HAVE_STATVFS64_FFRSIZE /**/
 
 /* another BSD extension */
 /* #undef HAVE_STATVFS64_FIOSIZE */
@@ -443,7 +443,7 @@
 /* #undef HAVE_STATVFS64_FSTYPENAME */
 
 /* Solaris etc. extended statvfs */
-/* #undef HAVE_STATVFS_FBASETYPE */
+#define HAVE_STATVFS_FBASETYPE /**/
 
 /* another Solaris extension */
 #define HAVE_STATVFS_FFRSIZE /**/
@@ -497,10 +497,10 @@
 #define HAVE_STRNLEN 1
 
 /* Define to 1 if the system has the type `struct anoninfo'. */
-/* #undef HAVE_STRUCT_ANONINFO */
+#define HAVE_STRUCT_ANONINFO 1
 
 /* Define to 1 if the system has the type `struct devstat'. */
-#define HAVE_STRUCT_DEVSTAT 1
+/* #undef HAVE_STRUCT_DEVSTAT */
 
 /* Define to 1 if the system has the type `struct diskstats'. */
 /* #undef HAVE_STRUCT_DISKSTATS */
@@ -515,7 +515,7 @@
 /* #undef HAVE_STRUCT_KINFO_CPUTIME */
 
 /* Define to 1 if the system has the type `struct kinfo_proc'. */
-#define HAVE_STRUCT_KINFO_PROC 1
+/* #undef HAVE_STRUCT_KINFO_PROC */
 
 /* Define to 1 if the system has the type `struct kinfo_proc2'. */
 /* #undef HAVE_STRUCT_KINFO_PROC2 */
@@ -524,7 +524,7 @@
 /* #undef HAVE_STRUCT_MNTENT */
 
 /* Define to 1 if the system has the type `struct mnttab'. */
-/* #undef HAVE_STRUCT_MNTTAB */
+#define HAVE_STRUCT_MNTTAB 1
 
 /* Define to 1 if the system has the type `struct proc_bsdinfo'. */
 /* #undef HAVE_STRUCT_PROC_BSDINFO */
@@ -539,25 +539,25 @@
 /* #undef HAVE_STRUCT_SOCKADDR_STORAGE___SS_FAMILY */
 
 /* Define to 1 if the system has the type `struct statfs'. */
-#define HAVE_STRUCT_STATFS 1
+/* #undef HAVE_STRUCT_STATFS */
 
 /* Define to 1 if the system has the type `struct statinfo'. */
-#define HAVE_STRUCT_STATINFO 1
+/* #undef HAVE_STRUCT_STATINFO */
 
 /* Define to 1 if the system has the type `struct statvfs'. */
 #define HAVE_STRUCT_STATVFS 1
 
 /* Define to 1 if the system has the type `struct statvfs64'. */
-/* #undef HAVE_STRUCT_STATVFS64 */
+#define HAVE_STRUCT_STATVFS64 1
 
 /* Define to 1 if the system has the type `struct swapent'. */
-/* #undef HAVE_STRUCT_SWAPENT */
+#define HAVE_STRUCT_SWAPENT 1
 
 /* Define to 1 if the system has the type `struct swaptable'. */
-/* #undef HAVE_STRUCT_SWAPTABLE */
+#define HAVE_STRUCT_SWAPTABLE 1
 
 /* Define to 1 if the system has the type `struct utmp'. */
-/* #undef HAVE_STRUCT_UTMP */
+#define HAVE_STRUCT_UTMP 1
 
 /* Define to 1 if the system has the type `struct utmpx'. */
 #define HAVE_STRUCT_UTMPX 1
@@ -578,16 +578,16 @@
 /* #undef HAVE_STRUCT_UVMEXP_SYSCTL */
 
 /* Define to 1 if the system has the type `struct vfsconf'. */
-#define HAVE_STRUCT_VFSCONF 1
+/* #undef HAVE_STRUCT_VFSCONF */
 
 /* Define to 1 if the system has the type `struct vmmeter'. */
-#define HAVE_STRUCT_VMMETER 1
+/* #undef HAVE_STRUCT_VMMETER */
 
 /* Define to 1 if the system has the type `struct vmtotal'. */
-#define HAVE_STRUCT_VMTOTAL 1
+/* #undef HAVE_STRUCT_VMTOTAL */
 
 /* Define to 1 if the system has the type `struct xswdev'. */
-#define HAVE_STRUCT_XSWDEV 1
+/* #undef HAVE_STRUCT_XSWDEV */
 
 /* struct xswdev.xsw_size */
 /* #undef HAVE_STRUCT_XSWDEV_SIZE */
@@ -596,23 +596,23 @@
 /* #undef HAVE_STRUCT_XSW_USAGE */
 
 /* Define to 1 if the system has the type `struct xvfsconf'. */
-#define HAVE_STRUCT_XVFSCONF 1
+/* #undef HAVE_STRUCT_XVFSCONF */
 
 /* Define to 1 if you have the `sysctlbyname' function. */
-#define HAVE_SYSCTLBYNAME 1
+/* #undef HAVE_SYSCTLBYNAME */
 
 /* Define to 1 if you have the `sysfs' function. */
-/* #undef HAVE_SYSFS */
+#define HAVE_SYSFS 1
 
 /* Define to 1 if you have the <sys/dir.h> header file, and it defines `DIR'.
    */
 /* #undef HAVE_SYS_DIR_H */
 
 /* Define to 1 if you have the <sys/disk.h> header file. */
-#define HAVE_SYS_DISK_H 1
+/* #undef HAVE_SYS_DISK_H */
 
 /* Define to 1 if you have the <sys/dkstat.h> header file. */
-#define HAVE_SYS_DKSTAT_H 1
+/* #undef HAVE_SYS_DKSTAT_H */
 
 /* Define to 1 if you have the <sys/dk.h> header file. */
 /* #undef HAVE_SYS_DK_H */
@@ -630,7 +630,7 @@
 #define HAVE_SYS_FILE_H 1
 
 /* Define to 1 if you have the <sys/fstyp.h> header file. */
-/* #undef HAVE_SYS_FSTYP_H */
+#define HAVE_SYS_FSTYP_H 1
 
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #define HAVE_SYS_IOCTL_H 1
@@ -639,7 +639,7 @@
 /* #undef HAVE_SYS_IOSTAT_H */
 
 /* Define to 1 if you have the <sys/loadavg.h> header file. */
-/* #undef HAVE_SYS_LOADAVG_H */
+#define HAVE_SYS_LOADAVG_H 1
 
 /* Define to 1 if you have the <sys/mib.h> header file. */
 /* #undef HAVE_SYS_MIB_H */
@@ -648,7 +648,7 @@
 /* #undef HAVE_SYS_MNTCTL_H */
 
 /* Define to 1 if you have the <sys/mnttab.h> header file. */
-/* #undef HAVE_SYS_MNTTAB_H */
+#define HAVE_SYS_MNTTAB_H 1
 
 /* Define to 1 if you have the <sys/mnttent.h> header file. */
 /* #undef HAVE_SYS_MNTTENT_H */
@@ -673,19 +673,19 @@
 /* #undef HAVE_SYS_PSTAT_H */
 
 /* Define to 1 if you have the <sys/resource.h> header file. */
-#define HAVE_SYS_RESOURCE_H 1
+/* #undef HAVE_SYS_RESOURCE_H */
 
 /* Define to 1 if you have the <sys/sar.h> header file. */
 /* #undef HAVE_SYS_SAR_H */
 
 /* Define to 1 if you have the <sys/sched.h> header file. */
-#define HAVE_SYS_SCHED_H 1
+/* #undef HAVE_SYS_SCHED_H */
 
 /* Define to 1 if you have the <sys/socket.h> header file. */
 #define HAVE_SYS_SOCKET_H 1
 
 /* Define to 1 if you have the <sys/sockio.h> header file. */
-/* #undef HAVE_SYS_SOCKIO_H */
+#define HAVE_SYS_SOCKIO_H 1
 
 /* Define to 1 if you have the <sys/statfs.h> header file. */
 /* #undef HAVE_SYS_STATFS_H */
@@ -700,16 +700,16 @@
 /* #undef HAVE_SYS_STROPTS_H */
 
 /* Define to 1 if you have the <sys/swap.h> header file. */
-/* #undef HAVE_SYS_SWAP_H */
+#define HAVE_SYS_SWAP_H 1
 
 /* Define to 1 if you have the <sys/sysctl.h> header file. */
-#define HAVE_SYS_SYSCTL_H 1
+/* #undef HAVE_SYS_SYSCTL_H */
 
 /* Define to 1 if you have the <sys/sysinfo.h> header file. */
-/* #undef HAVE_SYS_SYSINFO_H */
+#define HAVE_SYS_SYSINFO_H 1
 
 /* Define to 1 if you have the <sys/systeminfo.h> header file. */
-/* #undef HAVE_SYS_SYSTEMINFO_H */
+#define HAVE_SYS_SYSTEMINFO_H 1
 
 /* Define to 1 if you have the <sys/termios.h> header file. */
 #define HAVE_SYS_TERMIOS_H 1
@@ -721,7 +721,7 @@
 #define HAVE_SYS_TYPES_H 1
 
 /* Define to 1 if you have the <sys/ucred.h> header file. */
-#define HAVE_SYS_UCRED_H 1
+/* #undef HAVE_SYS_UCRED_H */
 
 /* Define to 1 if you have the <sys/unistd.h> header file. */
 #define HAVE_SYS_UNISTD_H 1
@@ -736,10 +736,10 @@
 #define HAVE_SYS_UTSNAME_H 1
 
 /* Define to 1 if you have the <sys/vfs.h> header file. */
-/* #undef HAVE_SYS_VFS_H */
+#define HAVE_SYS_VFS_H 1
 
 /* Define to 1 if you have the <sys/vmmeter.h> header file. */
-#define HAVE_SYS_VMMETER_H 1
+/* #undef HAVE_SYS_VMMETER_H */
 
 /* Define to 1 if you have the <sys/vmount.h> header file. */
 /* #undef HAVE_SYS_VMOUNT_H */
@@ -748,7 +748,7 @@
 #define HAVE_TERMIOS_H 1
 
 /* define when getmntent takes pointer to storage to fill */
-/* #undef HAVE_THREADSAFE_GETMNTENT */
+#define HAVE_THREADSAFE_GETMNTENT 1
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
@@ -757,7 +757,7 @@
 #define HAVE_UNSIGNED_LONG_LONG_INT 1
 
 /* utmp */
-/* #undef HAVE_UTMP */
+#define HAVE_UTMP /**/
 
 /* utmpx */
 #define HAVE_UTMPX /**/
@@ -769,31 +769,31 @@
 #define HAVE_UTMPX_HOST /**/
 
 /* utmpx.ut_syslen */
-/* #undef HAVE_UTMPX_SYSLEN */
+#define HAVE_UTMPX_SYSLEN /**/
 
 /* Define to 1 if you have the <utmp.h> header file. */
-/* #undef HAVE_UTMP_H */
+#define HAVE_UTMP_H 1
 
 /* utmp.ut_host */
 /* #undef HAVE_UTMP_HOST */
 
 /* utmp.ut_id */
-/* #undef HAVE_UTMP_ID */
+#define HAVE_UTMP_ID /**/
 
 /* utmp.ut_name */
-/* #undef HAVE_UTMP_NAME */
+#define HAVE_UTMP_NAME /**/
 
 /* utmp.ut_pid */
-/* #undef HAVE_UTMP_PID */
+#define HAVE_UTMP_PID /**/
 
 /* utmp.ut_time */
-/* #undef HAVE_UTMP_TIME */
+#define HAVE_UTMP_TIME /**/
 
 /* utmp.ut_type */
-/* #undef HAVE_UTMP_TYPE */
+#define HAVE_UTMP_TYPE /**/
 
 /* utmp.ut_user */
-/* #undef HAVE_UTMP_USER */
+#define HAVE_UTMP_USER /**/
 
 /* Define to 1 if you have the <uvm/uvm.h> header file. */
 /* #undef HAVE_UVM_UVM_H */
@@ -805,7 +805,7 @@
 /* #undef HAVE_VMMETER_V_CACHE_COUNT */
 
 /* Define to 1 if you have the <vm/vm_param.h> header file. */
-#define HAVE_VM_VM_PARAM_H 1
+/* #undef HAVE_VM_VM_PARAM_H */
 
 /* Define to 1 if you have the `vsnprintf' function. */
 #define HAVE_VSNPRINTF 1
@@ -853,7 +853,7 @@
 /* #undef MINGW */
 
 /* Configure specified mtab file */
-/* #undef MNT_MNTTAB */
+#define MNT_MNTTAB "/etc/mnttab"
 
 /* Define to 1 if PTHREAD_ONCE_INIT needs braces. */
 /* #undef NEED_PTHREAD_MUTEX_INITIALIZER_BRACES */
@@ -868,7 +868,7 @@
 /* #undef OPENBSD */
 
 /* Define to be the name of the operating system. */
-#define OS_TYPE "freebsd15.1"
+#define OS_TYPE "solaris2.11"
 
 /* Name of package */
 #define PACKAGE "libstatgrab"
@@ -899,10 +899,10 @@
 #define SIZEOF_UTMPX_UT_ID 0
 
 /* The size of `utmp.ut_id', as computed by sizeof. */
-/* #undef SIZEOF_UTMP_UT_ID */
+#define SIZEOF_UTMP_UT_ID 0
 
 /* Building on Solaris */
-/* #undef SOLARIS */
+#define SOLARIS 1
 
 /* Define to 1 if all of the C90 standard headers exist (not just the ones
    required in a freestanding environment). This macro is provided for
@@ -950,7 +950,7 @@
 /* #undef _UINT8_T */
 
 /* struct vmmeter needs to be pleased */
-#define _WANT_VMMETER 1
+/* #undef _WANT_VMMETER */
 
 /* Define to empty if `const' does not conform to ANSI C. */
 /* #undef const */

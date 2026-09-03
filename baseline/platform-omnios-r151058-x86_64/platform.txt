@@ -1,0 +1,12 @@
+SunOS runnervmg1sw1.local 5.11 omnios-r151058-516f7694c9 i86pc i386 i86pc
+--- /etc/os-release ---
+NAME="OmniOS"
+PRETTY_NAME="OmniOS Community Edition v11 r151058"
+CPE_NAME="cpe:/o:omniosce:omnios:11:151058:0"
+ID=omnios
+VERSION=r151058
+VERSION_ID=r151058
+BUILD_ID=151058.0.2026.04.24
+HOME_URL="https://omnios.org/"
+SUPPORT_URL="https://omnios.org/"
+BUG_REPORT_URL="https://github.com/omniosorg/omnios-build/issues/new"

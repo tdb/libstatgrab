@@ -1,4 +1,4 @@
-Linux runnervmvrwv9 6.17.0-1020-azure #20~24.04.1-Ubuntu SMP Fri Jun 19 20:09:14 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+Linux runnervmejwal 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
 --- /etc/os-release ---
 PRETTY_NAME="Ubuntu 24.04.4 LTS"
 NAME="Ubuntu"
