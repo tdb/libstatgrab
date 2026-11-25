@@ -78,14 +78,10 @@ set +e
 (
     set -e
     cd "$src"
-    if [ -n "${CFLAGS:-}" ]; then
-        CFLAGS="$CFLAGS -Wall -Werror"
-    else
-        CFLAGS="-Wall -Werror"
-    fi
-    export CFLAGS
     ./configure --enable-examples
-    "$make_cmd"
+    # Configure probes may intentionally trigger compiler warnings. Apply the
+    # strict flags to the project build while preserving configured CFLAGS.
+    "$make_cmd" AM_CFLAGS='-Wall -Werror'
 ) > "$out/warnings.log" 2>&1
 rc=$?
 set -e

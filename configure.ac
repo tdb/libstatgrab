@@ -62,6 +62,10 @@ AC_PROG_SED
 AC_PROG_GREP
 AM_PROG_AR
 
+# pkg-config only assists optional logging-library detection.  pkgconf 2.5.1
+# makes its absence fatal unless an explicit fallback is provided.
+PKG_PROG_PKG_CONFIG([0.9.0], [PKG_CONFIG=false])
+
 # define default language
 AC_LANG([C])
 

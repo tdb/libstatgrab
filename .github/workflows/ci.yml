@@ -26,7 +26,7 @@ concurrency:
 jobs:
   dist:
     name: Distribution tarball
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -112,10 +112,14 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
+          # Earlier attempts retain their artifacts within the same run.
+          name: github-pages-${{ github.run_attempt }}
           path: pages
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
 
   native:
     name: Build & test — ${{ matrix.label }}
@@ -136,12 +140,21 @@ jobs:
           - slug: ubuntu-24.04-arm64
             runner: ubuntu-24.04-arm
             label: Ubuntu 24.04 (ARM64)
+          - slug: ubuntu-26.04-arm64
+            runner: ubuntu-26.04-arm
+            label: Ubuntu 26.04 (ARM64)
           - slug: macos-15-x86_64
             runner: macos-15-intel
             label: macOS 15 (Intel)
+          - slug: macos-26-x86_64
+            runner: macos-26-intel
+            label: macOS 26 (Intel)
           - slug: macos-26-arm64
             runner: macos-26
             label: macOS 26 (Apple Silicon)
+          - slug: macos-27-arm64
+            runner: xcode-27
+            label: macOS 27 (Apple Silicon)
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Check out CI helpers
@@ -216,9 +229,12 @@ jobs:
           - slug: debian-13-x86_64
             template: debian-13
             label: Debian 13 (x86_64)
-          - slug: fedora-44-x86_64
-            template: fedora-44
-            label: Fedora 44 (x86_64)
+          - slug: fedora-45-x86_64
+            template: fedora-45
+            label: Fedora 45 (x86_64)
+          - slug: ubuntu-26.10-x86_64
+            template: ubuntu-26.10
+            label: Ubuntu 26.10 (x86_64)
           - slug: almalinux-10-x86_64
             template: almalinux-10
             label: AlmaLinux 10 (x86_64)
@@ -231,13 +247,12 @@ jobs:
           - slug: rocky-10-x86_64
             template: rocky-10
             label: Rocky Linux 10 (x86_64)
-          - slug: opensuse-leap-16-x86_64
+          - slug: opensuse-leap-16.1-x86_64
             template: opensuse-leap-16
-            label: openSUSE Leap 16 (x86_64)
-          # Lima has no built-in alpine-3.24 template yet; bump this when it does.
-          - slug: alpine-3.23-x86_64
-            template: alpine-3.23
-            label: Alpine Linux 3.23 (x86_64)
+            label: openSUSE Leap 16.1 (x86_64)
+          - slug: alpine-3.24-x86_64
+            template: alpine-3.24
+            label: Alpine Linux 3.24 (x86_64)
           - slug: archlinux-x86_64
             template: archlinux
             label: Arch Linux (x86_64)
@@ -254,6 +269,8 @@ jobs:
 
       - name: Set up Lima
         uses: lima-vm/lima-actions/setup@v1
+        with:
+          version: v2.3.0
 
       - name: Boot Linux VM
         run: |
@@ -310,6 +327,8 @@ jobs:
 
       - name: Set up Lima
         uses: lima-vm/lima-actions/setup@v1
+        with:
+          version: v2.3.0
 
       - name: Boot Linux VM
         run: |
@@ -364,26 +383,26 @@ jobs:
             version: '15.1'
             architecture: x86-64
             label: FreeBSD 15.1 (x86_64)
-          - slug: freebsd-14.4-x86_64
+          - slug: freebsd-14.5-x86_64
             os: freebsd
-            version: '14.4'
+            version: '14.5'
             architecture: x86-64
-            label: FreeBSD 14.4 (x86_64)
-          - slug: openbsd-7.9-x86_64
+            label: FreeBSD 14.5 (x86_64)
+          - slug: openbsd-8.0-x86_64
             os: openbsd
-            version: '7.9'
+            version: '8.0'
             architecture: x86-64
-            label: OpenBSD 7.9 (x86_64)
+            label: OpenBSD 8.0 (x86_64)
           - slug: dragonflybsd-6.4.2-x86_64
             os: dragonflybsd
             version: '6.4.2'
             architecture: x86-64
             label: DragonFlyBSD 6.4.2 (x86_64)
-          - slug: omnios-r151058-x86_64
+          - slug: omnios-r151060-x86_64
             os: omnios
-            version: 'r151058'
+            version: 'r151060'
             architecture: x86-64
-            label: OmniOS r151058 (x86_64)
+            label: OmniOS r151060 (x86_64)
     steps:
       - name: Check out CI helpers
         uses: actions/checkout@v7
@@ -395,7 +414,7 @@ jobs:
           path: dist
 
       - name: Boot ${{ matrix.os }} VM
-        uses: cross-platform-actions/action@v1.7.0
+        uses: cross-platform-actions/action@v1.8.0
         with:
           operating_system: ${{ matrix.os }}
           version: ${{ matrix.version }}
@@ -440,7 +459,7 @@ jobs:
           path: dist
 
       - name: Boot ${{ matrix.os }} VM
-        uses: cross-platform-actions/action@v1.7.0
+        uses: cross-platform-actions/action@v1.8.0
         with:
           operating_system: ${{ matrix.os }}
           version: ${{ matrix.version }}
@@ -467,7 +486,7 @@ jobs:
           retention-days: 14
     continue-on-error: true
   netbsd-vm:
-    name: Build & test — NetBSD 11.0 (x86_64)
+    name: Build & test — NetBSD 11.1 (x86_64)
     needs: dist
     runs-on: ubuntu-24.04
     steps:
@@ -476,28 +495,28 @@ jobs:
         with:
           name: distfile
           path: dist
-      - name: Build and test in NetBSD 11.0
-        uses: vmactions/netbsd-vm@v1.5.2
+      - name: Build and test in NetBSD 11.1
+        uses: vmactions/netbsd-vm@v1.5.3
         with:
-          release: '11.0'
+          release: '11.1'
           usesh: true
           sync: scp
           run: |
-            CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh netbsd-11.0-x86_64
+            CI_INSTALL_DEPS=1 sh .github/ci/run-target.sh netbsd-11.1-x86_64
             exit 0
       - name: Upload platform result
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: platform-netbsd-11.0-x86_64
-          path: .ci-output/netbsd-11.0-x86_64
+          name: platform-netbsd-11.1-x86_64
+          path: .ci-output/netbsd-11.1-x86_64
           if-no-files-found: warn
           retention-days: 30
       - name: Propagate target failure
-        run: sh .github/ci/check-result.sh netbsd-11.0-x86_64
+        run: sh .github/ci/check-result.sh netbsd-11.1-x86_64
 
   warnings-netbsd-vm:
-    name: Warnings — NetBSD 11.0 (x86_64)
+    name: Warnings — NetBSD 11.1 (x86_64)
     needs: dist
     runs-on: ubuntu-24.04
     steps:
@@ -507,25 +526,25 @@ jobs:
           name: distfile
           path: dist
       - name: Run -Wall -Werror build
-        uses: vmactions/netbsd-vm@v1.5.2
+        uses: vmactions/netbsd-vm@v1.5.3
         with:
-          release: '11.0'
+          release: '11.1'
           usesh: true
           sync: scp
           run: |
-            CI_INSTALL_DEPS=1 sh .github/ci/run-warning-target.sh netbsd-11.0-x86_64
+            CI_INSTALL_DEPS=1 sh .github/ci/run-warning-target.sh netbsd-11.1-x86_64
             exit 0
       - name: Report warning-build failure
         id: warning_result
         if: always()
-        run: sh .github/ci/check-warning-result.sh 'netbsd-11.0-x86_64'
+        run: sh .github/ci/check-warning-result.sh 'netbsd-11.1-x86_64'
 
       - name: Upload warning-build log
         if: always() && steps.warning_result.outputs.failed == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: warnings-netbsd-11.0-x86_64
-          path: .ci-warning-output/netbsd-11.0-x86_64
+          name: warnings-netbsd-11.1-x86_64
+          path: .ci-warning-output/netbsd-11.1-x86_64
           if-no-files-found: warn
           retention-days: 14
     continue-on-error: true
@@ -604,6 +623,10 @@ jobs:
           - slug: debian-12-x86_64
             template: debian-12
             label: Debian 12 (x86_64)
+          - slug: fedora-44-x86_64
+            template: fedora-44
+            label: Fedora 44 (x86_64)
+          # Fedora 43 remains supported until 2026-12-02.
           - slug: fedora-43-x86_64
             template: fedora-43
             label: Fedora 43 (x86_64)
@@ -619,6 +642,9 @@ jobs:
           - slug: oraclelinux-10-x86_64
             template: oraclelinux-10
             label: Oracle Linux 10 (x86_64)
+          - slug: alpine-3.23-x86_64
+            template: alpine-3.23
+            label: Alpine Linux 3.23 (x86_64)
           - slug: alpine-3.22-x86_64
             template: alpine-3.22
             label: Alpine Linux 3.22 (x86_64)
@@ -631,6 +657,8 @@ jobs:
           path: dist
       - name: Set up Lima
         uses: lima-vm/lima-actions/setup@v1
+        with:
+          version: v2.3.0
       - name: Boot Linux VM
         run: |
           set -euxo pipefail
@@ -677,6 +705,8 @@ jobs:
           path: dist
       - name: Set up Lima
         uses: lima-vm/lima-actions/setup@v1
+        with:
+          version: v2.3.0
       - name: Boot Linux VM
         run: |
           set -euxo pipefail
@@ -727,24 +757,30 @@ jobs:
             architecture: arm64
             run_tests: '0'
             label: FreeBSD 15.1 (ARM64)
-          - slug: openbsd-7.9-arm64
+          - slug: openbsd-8.0-arm64
             os: openbsd
-            version: '7.9'
+            version: '8.0'
             architecture: arm64
             run_tests: '0'
-            label: OpenBSD 7.9 (ARM64)
-          - slug: openbsd-7.8-x86_64
+            label: OpenBSD 8.0 (ARM64)
+          - slug: openbsd-7.9-x86_64
             os: openbsd
-            version: '7.8'
+            version: '7.9'
             architecture: x86-64
             run_tests: '1'
-            label: OpenBSD 7.8 (x86_64)
-          - slug: netbsd-10.1-x86_64
+            label: OpenBSD 7.9 (x86_64)
+          - slug: netbsd-10.2-x86_64
             os: netbsd
-            version: '10.1'
+            version: '10.2'
             architecture: x86-64
             run_tests: '1'
-            label: NetBSD 10.1 (x86_64)
+            label: NetBSD 10.2 (x86_64)
+          - slug: omnios-r151058-x86_64
+            os: omnios
+            version: 'r151058'
+            architecture: x86-64
+            run_tests: '1'
+            label: OmniOS r151058 (x86_64)
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -752,7 +788,7 @@ jobs:
           name: distfile
           path: dist
       - name: Boot ${{ matrix.os }} VM
-        uses: cross-platform-actions/action@v1.7.0
+        uses: cross-platform-actions/action@v1.8.0
         with:
           operating_system: ${{ matrix.os }}
           version: ${{ matrix.version }}
@@ -790,7 +826,7 @@ jobs:
           name: distfile
           path: dist
       - name: Boot ${{ matrix.os }} VM
-        uses: cross-platform-actions/action@v1.7.0
+        uses: cross-platform-actions/action@v1.8.0
         with:
           operating_system: ${{ matrix.os }}
           version: ${{ matrix.version }}
@@ -893,30 +929,30 @@ jobs:
       matrix: &netbsd_arch_matrix
         include:
           - arch: aarch64
-            slug: netbsd-11.0-arm64
+            slug: netbsd-11.1-arm64
             sync: scp
             run_tests: '0'
-            label: NetBSD 11.0 (ARM64)
+            label: NetBSD 11.1 (ARM64)
           - arch: riscv64
-            slug: netbsd-11.0-riscv64
+            slug: netbsd-11.1-riscv64
             sync: scp
             run_tests: '0'
-            label: NetBSD 11.0 (RISC-V)
+            label: NetBSD 11.1 (RISC-V)
           - arch: sparc64
-            slug: netbsd-11.0-sparc64
+            slug: netbsd-11.1-sparc64
             sync: scp
             run_tests: '0'
-            label: NetBSD 11.0 (SPARC64)
+            label: NetBSD 11.1 (SPARC64)
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           name: distfile
           path: dist
-      - name: Build and test in NetBSD 11.0 ${{ matrix.arch }}
-        uses: vmactions/netbsd-vm@v1.5.2
+      - name: Build and test in NetBSD 11.1 ${{ matrix.arch }}
+        uses: vmactions/netbsd-vm@v1.5.3
         with:
-          release: '11.0'
+          release: '11.1'
           arch: ${{ matrix.arch }}
           usesh: true
           sync: ${{ matrix.sync }}
@@ -950,9 +986,9 @@ jobs:
           name: distfile
           path: dist
       - name: Run -Wall -Werror build
-        uses: vmactions/netbsd-vm@v1.5.2
+        uses: vmactions/netbsd-vm@v1.5.3
         with:
-          release: '11.0'
+          release: '11.1'
           arch: ${{ matrix.arch }}
           usesh: true
           sync: ${{ matrix.sync }}

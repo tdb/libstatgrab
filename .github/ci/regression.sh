@@ -31,6 +31,48 @@ canonicalize_keys()
     ' "$1" | LC_ALL=C sort -u
 }
 
+# Compare configuration decisions, not Autotools prose or release/host version
+# strings. Keep directives in their original order, including conditional
+# blocks and unavailable-feature markers; the original headers stay intact in
+# the artifacts and baseline for diagnostics.
+canonicalize_config()
+{
+    perl -0777 -pe '
+        # C preprocessing joins continued lines before recognizing comments.
+        s/\\\r?\n//g;
+        s{
+            ("(?:\\.|[^"\\])*" | \x27(?:\\.|[^\x27\\])*\x27)
+            | (/\*.*?\*/)
+            | (//[^\n]*)
+        }{
+            my ($quoted, $block) = ($1, $2);
+            if (defined $quoted) {
+                $quoted;
+            } elsif (defined $block &&
+                     $block =~ m{\A/\*\s*\#undef\s+([A-Za-z_][A-Za-z_0-9]*)\s*\*/\z}) {
+                "#undef $1";
+            } else {
+                " ";
+            }
+        }gsex;
+        # Comment removal can leave extra spacing between tokens. Normalize
+        # that spacing without changing whitespace inside quoted values.
+        s{
+            ("(?:\\.|[^"\\])*" | \x27(?:\\.|[^\x27\\])*\x27)
+            | [ \t]+
+        }{defined $1 ? $1 : " "}gex;
+        my @lines;
+        for my $line (split /\n/) {
+            $line =~ s/^[ \t]+//;
+            $line =~ s/[ \t\r]+$//;
+            next if $line eq "";
+            $line =~ s{\A(\#[ \t]*define[ \t]+(?:PACKAGE_STRING|PACKAGE_VERSION|VERSION|OS_TYPE))(?=[ \t]|\z)[ \t]*.*\z}{$1 "<metadata>"};
+            push @lines, $line;
+        }
+        $_ = join("\n", @lines) . "\n";
+    ' "$1"
+}
+
 schema_for()
 {
     dir=$1
@@ -171,10 +213,16 @@ case "$mode" in
             if [ ! -f "$ref/config.h" ] || [ ! -f "$platform/config.h" ]; then
                 echo "::error title=Incomplete CI regression input::$name lacks config.h in current result or baseline"
                 changed=1
-            elif ! cmp -s "$ref/config.h" "$platform/config.h"; then
-                echo "::error title=CI regression::$name changed config.h"
-                diff -u "$ref/config.h" "$platform/config.h" || true
-                changed=1
+            else
+                reference_config="$tmp/$name.reference.config.h"
+                current_config="$tmp/$name.current.config.h"
+                canonicalize_config "$ref/config.h" > "$reference_config"
+                canonicalize_config "$platform/config.h" > "$current_config"
+                if ! cmp -s "$reference_config" "$current_config"; then
+                    echo "::error title=CI regression::$name changed config.h"
+                    diff -u "$reference_config" "$current_config" || true
+                    changed=1
+                fi
             fi
         done
         exit "$changed"
